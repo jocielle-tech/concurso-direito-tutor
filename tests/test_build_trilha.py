@@ -206,6 +206,12 @@ class BuildTrilhaTests(unittest.TestCase):
             "missing_reference": lambda m: set_value(m, ["sessions", 0, "module_id"], "missing"),
             "missing_required_section": None,
             "invalid_map_category": None,
+            "missing_question_feedback": None,
+            "incomplete_question_feedback": None,
+            "missing_aggregate_diagnosis": None,
+            "source_wrong_type": lambda m: set_value(m, ["source"], []),
+            "topic_status_wrong_type": lambda m: set_value(m, ["modules", 0, "topics", 0, "status"], {}),
+            "session_status_wrong_type": lambda m: set_value(m, ["sessions", 0, "status"], []),
         }
         for name, mutate in invalid_cases.items():
             with self.subTest(name=name):
@@ -222,12 +228,29 @@ class BuildTrilhaTests(unittest.TestCase):
                     self.write_session("001.md", valid_session("Controle difuso").replace("## Fontes\n\n", ""))
                 elif name == "invalid_map_category":
                     self.write_session("001.md", valid_session("Controle difuso").replace("[conceito]", "[inválido]"))
+                elif name == "missing_question_feedback":
+                    self.write_session("001.md", valid_session("Controle difuso").replace(
+                        "### Questão 1\n- Resposta: alternativa A\n- Resultado: correta; gabarito A\n"
+                        "- Fundamento: Constituição Federal.\n- Alternativas úteis: B ignora a competência.\n"
+                        "- Tipo de erro: nenhum\n- Prevenção: manter a revisão.\n"
+                        "- Fonte: Constituição Federal.\n- Revisão: em sete dias.\n\n", ""
+                    ))
+                elif name == "incomplete_question_feedback":
+                    self.write_session("001.md", valid_session("Controle difuso").replace(
+                        "- Prevenção: manter a revisão.\n", ""
+                    ))
+                elif name == "missing_aggregate_diagnosis":
+                    self.write_session("001.md", valid_session("Controle difuso").replace(
+                        "### Diagnóstico agregado\n- Acertos: 1/1 (100%).\n- Padrões de erro: nenhum.\n"
+                        "- Prioridade: consolidar competência.\n- Próxima revisão: em sete dias.\n\n", ""
+                    ))
                 else:
                     manifest = self.valid_manifest()
                     mutate(manifest)
                     self.write_manifest(manifest)
                 result = self.run_build()
                 self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("Traceback", result.stderr)
                 self.assertEqual((self.trail / "apostila.md").read_bytes(), b"valid markdown")
                 self.assertEqual((self.trail / "apostila.html").read_bytes(), b"valid html")
                 self.trail = original_trail
@@ -276,6 +299,53 @@ class BuildTrilhaTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Trilha recalibrada", (self.trail / "apostila.md").read_text(encoding="utf-8"))
 
+    def test_html_renders_level_three_session_headings_without_markdown_markers(self):
+        self.write_valid_trail()
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        self.assertIn("<h5>Questão 1</h5>", html)
+        self.assertIn("<h5>Diagnóstico agregado</h5>", html)
+        self.assertNotIn("### Questão 1", html)
+        self.assertNotIn("### Diagnóstico agregado", html)
+
+    def test_html_preserves_three_level_mind_map_hierarchy_and_colors(self):
+        self.write_valid_trail()
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        self.assertIn('<ul class="mind-map">', html)
+        self.assertIn('class="map-item map-level-1"', html)
+        self.assertIn('class="map-item map-level-2"', html)
+        self.assertIn('class="map-item map-level-3"', html)
+        self.assertIn("Base", html)
+        self.assertIn("Aplicação", html)
+        self.assertIn("Limite", html)
+        self.assertIn("border-color:#2563EB", html)
+        self.assertIn("border-color:#16A34A", html)
+        self.assertIn("border-color:#D97706", html)
+
+    def test_in_progress_session_with_unvalidated_map_content_still_builds(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["sessions"][1]["status"] = "in_progress"
+        manifest["modules"][0]["topics"][1]["status"] = "in_progress"
+        self.write_manifest(manifest)
+        self.write_session(
+            "002.md",
+            "# Direitos fundamentais\n\n## Mapa mental\n\n- [rascunho] Conteúdo em elaboração.\n",
+        )
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        self.assertIn("Conteúdo em elaboração.", html)
+
 
 def set_value(value, path, replacement):
     for key in path[:-1]:
@@ -308,7 +378,21 @@ Texto de estudo.
 
 ## Questões e feedback
 
-Revise questões anteriores.
+### Questão 1
+- Resposta: alternativa A
+- Resultado: correta; gabarito A
+- Fundamento: Constituição Federal.
+- Alternativas úteis: B ignora a competência.
+- Tipo de erro: nenhum
+- Prevenção: manter a revisão.
+- Fonte: Constituição Federal.
+- Revisão: em sete dias.
+
+### Diagnóstico agregado
+- Acertos: 1/1 (100%).
+- Padrões de erro: nenhum.
+- Prioridade: consolidar competência.
+- Próxima revisão: em sete dias.
 
 ## Fontes
 

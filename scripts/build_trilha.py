@@ -25,6 +25,11 @@ REQUIRED_SECTIONS = (
     "Conteúdo principal", "Resumo estratégico", "Mapa mental",
     "Questões e feedback", "Fontes", "Próxima revisão",
 )
+QUESTION_FIELDS = (
+    "Resposta", "Resultado", "Fundamento", "Alternativas úteis", "Tipo de erro",
+    "Prevenção", "Fonte", "Revisão",
+)
+DIAGNOSIS_FIELDS = ("Acertos", "Padrões de erro", "Prioridade", "Próxima revisão")
 LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
 
@@ -74,6 +79,43 @@ def session_sections(text, session_title):
     return sections
 
 
+def missing_feedback_fields(block, fields):
+    return [
+        field for field in fields
+        if not re.search(rf"^\s*[-*]\s+{re.escape(field)}:\s*\S", block, re.MULTILINE)
+    ]
+
+
+def validate_question_feedback(text, session_id):
+    headings = list(re.finditer(r"^###\s+(.+?)\s*$", text, re.MULTILINE))
+    questions = [
+        (index, heading) for index, heading in enumerate(headings)
+        if re.fullmatch(r"Questão\s+\d+", heading.group(1))
+    ]
+    diagnoses = [
+        (index, heading) for index, heading in enumerate(headings)
+        if heading.group(1) == "Diagnóstico agregado"
+    ]
+    if not questions:
+        raise ValidationError(f"sessão '{session_id}': questão com feedback obrigatória ausente")
+    if not diagnoses or diagnoses[0][1].start() < questions[-1][1].start():
+        raise ValidationError(f"sessão '{session_id}': diagnóstico agregado obrigatório ausente")
+    for index, heading in questions:
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        missing = missing_feedback_fields(text[heading.end():end], QUESTION_FIELDS)
+        if missing:
+            raise ValidationError(
+                f"sessão '{session_id}': questão sem campos obrigatórios: {', '.join(missing)}"
+            )
+    diagnosis_index, diagnosis = diagnoses[0]
+    end = headings[diagnosis_index + 1].start() if diagnosis_index + 1 < len(headings) else len(text)
+    missing = missing_feedback_fields(text[diagnosis.end():end], DIAGNOSIS_FIELDS)
+    if missing:
+        raise ValidationError(
+            f"sessão '{session_id}': diagnóstico sem campos obrigatórios: {', '.join(missing)}"
+        )
+
+
 def validate_completed_session(text, session):
     sections = session_sections(text, session["title"])
     missing = [section for section in REQUIRED_SECTIONS if section not in sections]
@@ -95,6 +137,7 @@ def validate_completed_session(text, session):
             raise ValidationError(f"sessão '{session['id']}': mapa tem mais de três níveis")
         if match.group(2) not in MAP_CATEGORIES:
             raise ValidationError(f"sessão '{session['id']}': categoria de mapa inválida")
+    validate_question_feedback(sections["Questões e feedback"], session["id"])
 
 
 def inside_trail(trail, relative_path):
@@ -131,7 +174,7 @@ def load_and_validate(trail):
         raise ValidationError("schema_version deve ser o inteiro 1")
     if not isinstance(manifest["title"], str) or not isinstance(manifest["slug"], str):
         raise ValidationError("title e slug devem ser texto")
-    if manifest["source"] not in SOURCES:
+    if not isinstance(manifest["source"], str) or manifest["source"] not in SOURCES:
         raise ValidationError("source inválido")
     if not isinstance(manifest["recalibrated"], bool):
         raise ValidationError("recalibrated deve ser booleano")
@@ -159,7 +202,8 @@ def load_and_validate(trail):
             )
             if not valid_weight:
                 raise ValidationError("peso deve ser numérico positivo")
-            if topic["status"] not in STATUSES or not isinstance(topic["sessions"], list):
+            if (not isinstance(topic["status"], str) or topic["status"] not in STATUSES
+                    or not isinstance(topic["sessions"], list)):
                 raise ValidationError("tópico inválido")
             topic_ids.add(topic_id)
             topic_modules[topic_id] = module["id"]
@@ -170,7 +214,8 @@ def load_and_validate(trail):
     for session in manifest["sessions"]:
         require_keys(session, ("id", "title", "date", "status", "module_id", "topic_ids", "file"), "sessão")
         if (not isinstance(session["title"], str) or not isinstance(session["date"], str)
-                or session["status"] not in STATUSES or session["module_id"] not in module_ids
+                or not isinstance(session["status"], str) or session["status"] not in STATUSES
+                or not isinstance(session["module_id"], str) or session["module_id"] not in module_ids
                 or not isinstance(session["topic_ids"], list)):
             raise ValidationError("sessão inválida")
         if not session["topic_ids"] or len(session["topic_ids"]) != len(set(session["topic_ids"])):
@@ -253,23 +298,76 @@ def safe_inline(text):
     return "".join(parts)
 
 
+def html_map(lines):
+    blocks = ['<ul class="mind-map">']
+    current_level = 0
+    for line in lines:
+        match = MAP_ITEM.match(line)
+        if not match:
+            continue
+        level = len(match.group(1).expandtabs(2)) // 2 + 1
+        category, content = match.group(2), line[match.end(2) + 2:].strip()
+        label, color = MAP_CATEGORIES[category]
+        if current_level == 0:
+            current_level = level
+        elif level > current_level:
+            while current_level < level:
+                current_level += 1
+                blocks.append(f'<ul class="map-level-{current_level}">')
+        elif level == current_level:
+            blocks.append("</li>")
+        else:
+            while current_level > level:
+                blocks.append("</li></ul>")
+                current_level -= 1
+            blocks.append("</li>")
+        blocks.append(
+            f'<li class="map-item map-level-{level}" style="border-color:{color}">'
+            f"<strong>{label}:</strong> {safe_inline(content)}"
+        )
+    while current_level > 1:
+        blocks.append("</li></ul>")
+        current_level -= 1
+    if current_level:
+        blocks.append("</li>")
+    blocks.append("</ul>")
+    return "\n".join(blocks)
+
+
 def html_session(text, session_anchor):
     blocks = []
-    for line in text.splitlines():
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         if line.startswith("# "):
             blocks.append(f'<h3 id="{html.escape(session_anchor, quote=True)}">{safe_inline(line[2:])}</h3>')
         elif line.startswith("## "):
             blocks.append(f"<h4>{safe_inline(line[3:])}</h4>")
+            if line[3:] == "Mapa mental":
+                index += 1
+                map_lines = []
+                while index < len(lines) and not lines[index].startswith(("# ", "## ")):
+                    if lines[index].strip():
+                        map_lines.append(lines[index])
+                    index += 1
+                if all(
+                    (match := MAP_ITEM.match(map_line))
+                    and match.group(2) in MAP_CATEGORIES
+                    for map_line in map_lines
+                ):
+                    blocks.append(html_map(map_lines))
+                else:
+                    blocks.extend(f"<p>{safe_inline(map_line.strip())}</p>" for map_line in map_lines)
+                continue
+        elif line.startswith("### "):
+            blocks.append(f"<h5>{safe_inline(line[4:])}</h5>")
         elif line.strip().startswith(("- ", "* ")):
             item = line.strip()[2:]
-            category = re.match(r"\[([^]]+)\]\s*(.*)", item)
-            if category and category.group(1) in MAP_CATEGORIES:
-                label, color = MAP_CATEGORIES[category.group(1)]
-                blocks.append(f'<p class="map-item" style="border-color:{color}"><strong>{label}:</strong> {safe_inline(category.group(2))}</p>')
-            else:
-                blocks.append(f"<p>• {safe_inline(item)}</p>")
+            blocks.append(f"<p>• {safe_inline(item)}</p>")
         elif line.strip():
             blocks.append(f"<p>{safe_inline(line.strip())}</p>")
+        index += 1
     return "\n".join(blocks)
 
 
