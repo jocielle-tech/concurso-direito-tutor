@@ -116,6 +116,25 @@ def validate_question_feedback(text, session_id):
         )
 
 
+def map_validation_error(map_lines):
+    previous_level = None
+    for line in map_lines:
+        match = MAP_ITEM.match(line)
+        if not match:
+            return "item de mapa inválido"
+        level = len(match.group(1).expandtabs(2)) // 2 + 1
+        if level > 3:
+            return "mapa tem mais de três níveis"
+        if previous_level is None and level != 1:
+            return "mapa deve iniciar no primeiro nível"
+        if previous_level is not None and level > previous_level + 1:
+            return "mapa não pode saltar níveis"
+        if match.group(2) not in MAP_CATEGORIES:
+            return "categoria de mapa inválida"
+        previous_level = level
+    return None
+
+
 def validate_completed_session(text, session):
     sections = session_sections(text, session["title"])
     missing = [section for section in REQUIRED_SECTIONS if section not in sections]
@@ -129,21 +148,9 @@ def validate_completed_session(text, session):
     map_lines = [line for line in sections["Mapa mental"].splitlines() if line.strip()]
     if not map_lines:
         raise ValidationError(f"sessão '{session['id']}': mapa mental vazio")
-    previous_level = None
-    for line in map_lines:
-        match = MAP_ITEM.match(line)
-        if not match:
-            raise ValidationError(f"sessão '{session['id']}': item de mapa inválido")
-        level = len(match.group(1).expandtabs(2)) // 2 + 1
-        if level > 3:
-            raise ValidationError(f"sessão '{session['id']}': mapa tem mais de três níveis")
-        if previous_level is None and level != 1:
-            raise ValidationError(f"sessão '{session['id']}': mapa deve iniciar no primeiro nível")
-        if previous_level is not None and level > previous_level + 1:
-            raise ValidationError(f"sessão '{session['id']}': mapa não pode saltar níveis")
-        if match.group(2) not in MAP_CATEGORIES:
-            raise ValidationError(f"sessão '{session['id']}': categoria de mapa inválida")
-        previous_level = level
+    map_error = map_validation_error(map_lines)
+    if map_error:
+        raise ValidationError(f"sessão '{session['id']}': {map_error}")
     validate_question_feedback(sections["Questões e feedback"], session["id"])
 
 
@@ -358,11 +365,7 @@ def html_session(text, session_anchor):
                     if lines[index].strip():
                         map_lines.append(lines[index])
                     index += 1
-                if all(
-                    (match := MAP_ITEM.match(map_line))
-                    and match.group(2) in MAP_CATEGORIES
-                    for map_line in map_lines
-                ):
+                if map_lines and map_validation_error(map_lines) is None:
                     blocks.append(html_map(map_lines))
                 else:
                     blocks.extend(f"<p>{safe_inline(map_line.strip())}</p>" for map_line in map_lines)

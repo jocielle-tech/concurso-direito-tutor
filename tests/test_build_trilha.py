@@ -347,7 +347,8 @@ class BuildTrilhaTests(unittest.TestCase):
         self.write_manifest(manifest)
         self.write_session(
             "002.md",
-            "# Direitos fundamentais\n\n## Mapa mental\n\n- [rascunho] Conteúdo em elaboração.\n"
+            "# Direitos fundamentais\n\n## Mapa mental\n\n- [conceito] Conteúdo em elaboração.\n"
+            "    - [excecao] Rascunho com salto de nível.\n"
             "\n### Próxima etapa\n\nConcluir o mapa após a revisão.\n",
         )
 
@@ -355,7 +356,10 @@ class BuildTrilhaTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        in_progress_html = html[html.index('id="sessao-s002"'):]
         self.assertIn("Conteúdo em elaboração.", html)
+        self.assertIn("Rascunho com salto de nível.", html)
+        self.assertNotIn('<ul class="mind-map">', in_progress_html)
         self.assertIn("<h5>Próxima etapa</h5>", html)
         self.assertNotIn("### Próxima etapa", html)
 
