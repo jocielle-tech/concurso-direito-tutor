@@ -9,7 +9,7 @@ import sys
 import tempfile
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 
 SOURCES = {"provisional", "edital"}
@@ -201,6 +201,11 @@ def all_topics(manifest):
     return [topic for module in manifest["modules"] for topic in module["topics"]]
 
 
+def anchor_id(kind, item_id):
+    """Return a stable fragment identifier while keeping arbitrary IDs safe in URLs."""
+    return f"{kind}-{quote(item_id, safe='-._~')}"
+
+
 def markdown_document(manifest, session_files):
     overall = progress(all_topics(manifest))
     lines = [f"# {manifest['title']}", "", f"Progresso global: {overall}%", f"Régua de progresso: {overall}% {'█' * (overall // 10)}{'░' * (10 - overall // 10)}", ""]
@@ -208,17 +213,24 @@ def markdown_document(manifest, session_files):
         lines.extend(["**Trilha recalibrada**", ""])
     lines.extend(["## Índice", ""])
     for module in manifest["modules"]:
-        lines.append(f"- {module['title']}")
+        module_anchor = anchor_id("modulo", module["id"])
+        lines.append(f"- [{module['title']}](#{module_anchor})")
         for session in [s for s in manifest["sessions"] if s["module_id"] == module["id"]]:
-            lines.append(f"  - {session['title']} ({session['date']})")
+            session_anchor = anchor_id("sessao", session["id"])
+            lines.append(f"  - [{session['title']}](#{session_anchor}) ({session['date']})")
     lines.extend(["", "## Progresso por módulo", ""])
     for module in manifest["modules"]:
         lines.append(f"- {module['title']}: {progress(module['topics'])}%")
     lines.extend(["", "## Legenda do mapa mental", ""])
     for _, (label, color) in MAP_CATEGORIES.items():
         lines.append(f"- {label} ({color})")
-    for session in manifest["sessions"]:
-        lines.extend(["", "---", "", session_files[session["id"]].rstrip(), ""])
+    for module in manifest["modules"]:
+        lines.extend(["", "---", "", f'<a id="{anchor_id("modulo", module["id"])}"></a>', "", f"## {module['title']}", ""])
+        for session in [s for s in manifest["sessions"] if s["module_id"] == module["id"]]:
+            lines.extend([
+                "---", "", f'<a id="{anchor_id("sessao", session["id"])}"></a>', "",
+                session_files[session["id"]].rstrip(), "",
+            ])
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -241,13 +253,13 @@ def safe_inline(text):
     return "".join(parts)
 
 
-def html_session(text):
+def html_session(text, session_anchor):
     blocks = []
     for line in text.splitlines():
         if line.startswith("# "):
-            blocks.append(f"<h2>{safe_inline(line[2:])}</h2>")
+            blocks.append(f'<h3 id="{html.escape(session_anchor, quote=True)}">{safe_inline(line[2:])}</h3>')
         elif line.startswith("## "):
-            blocks.append(f"<h3>{safe_inline(line[3:])}</h3>")
+            blocks.append(f"<h4>{safe_inline(line[3:])}</h4>")
         elif line.strip().startswith(("- ", "* ")):
             item = line.strip()[2:]
             category = re.match(r"\[([^]]+)\]\s*(.*)", item)
@@ -264,8 +276,8 @@ def html_session(text):
 def html_document(manifest, session_files):
     overall = progress(all_topics(manifest))
     index = "".join(
-        f"<li>{html.escape(module['title'])}<ul>" + "".join(
-            f"<li>{html.escape(session['title'])} ({html.escape(session['date'])})</li>"
+        f'<li><a href="#{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</a><ul>' + "".join(
+            f'<li><a href="#{html.escape(anchor_id("sessao", session["id"]), quote=True)}">{html.escape(session["title"])}</a> ({html.escape(session["date"])})</li>'
             for session in manifest["sessions"] if session["module_id"] == module["id"]
         ) + "</ul></li>"
         for module in manifest["modules"]
@@ -278,7 +290,16 @@ def html_document(manifest, session_files):
         f'<li><span style="color:{color}">{label} ({color})</span></li>'
         for label, color in MAP_CATEGORIES.values()
     )
-    sessions = "\n".join(html_session(session_files[s["id"]]) for s in manifest["sessions"])
+    sessions = "\n".join(
+        f'<section aria-labelledby="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">'
+        f'<h2 id="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</h2>'
+        + "\n".join(
+            html_session(session_files[session["id"]], anchor_id("sessao", session["id"]))
+            for session in manifest["sessions"] if session["module_id"] == module["id"]
+        )
+        + "</section>"
+        for module in manifest["modules"]
+    )
     recalibrated = "<p><strong>Trilha recalibrada</strong></p>" if manifest["recalibrated"] and manifest["source"] == "edital" else ""
     return f'''<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>{html.escape(manifest['title'])}</title>

@@ -172,6 +172,23 @@ class BuildTrilhaTests(unittest.TestCase):
             self.assertIn(label, html)
             self.assertIn(color, html)
 
+    def test_index_links_to_deterministic_module_and_session_anchors(self):
+        self.write_valid_trail()
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
+        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        self.assertIn("[Direito Constitucional](#modulo-constitucional)", markdown)
+        self.assertIn("[Controle difuso](#sessao-s001)", markdown)
+        self.assertIn('<a id="modulo-constitucional"></a>', markdown)
+        self.assertIn('<a id="sessao-s001"></a>', markdown)
+        self.assertIn('href="#modulo-constitucional"', html)
+        self.assertIn('href="#sessao-s001"', html)
+        self.assertIn('id="modulo-constitucional"', html)
+        self.assertIn('id="sessao-s001"', html)
+
     def test_same_input_produces_byte_identical_outputs(self):
         self.write_valid_trail()
         self.assertEqual(self.run_build().returncode, 0)
