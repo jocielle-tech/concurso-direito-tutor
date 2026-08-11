@@ -214,6 +214,10 @@ class BuildTrilhaTests(unittest.TestCase):
             "source_wrong_type": lambda m: set_value(m, ["source"], []),
             "topic_status_wrong_type": lambda m: set_value(m, ["modules", 0, "topics", 0, "status"], {}),
             "session_status_wrong_type": lambda m: set_value(m, ["sessions", 0, "status"], []),
+            "session_topic_id_wrong_type": lambda m: set_value(m, ["sessions", 0, "topic_ids"], [{}]),
+            "topic_session_id_wrong_type": lambda m: set_value(
+                m, ["modules", 0, "topics", 0, "sessions"], ["s001", {}]
+            ),
         }
         for name, mutate in invalid_cases.items():
             with self.subTest(name=name):

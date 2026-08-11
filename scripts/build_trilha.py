@@ -219,6 +219,8 @@ def load_and_validate(trail):
             if (not isinstance(topic["status"], str) or topic["status"] not in STATUSES
                     or not isinstance(topic["sessions"], list)):
                 raise ValidationError("tópico inválido")
+            if any(not isinstance(item, str) or not item for item in topic["sessions"]):
+                raise ValidationError("referências de sessões inválidas")
             topic_ids.add(topic_id)
             topic_modules[topic_id] = module["id"]
             topic_sessions[topic_id] = topic["sessions"]
@@ -232,7 +234,9 @@ def load_and_validate(trail):
                 or not isinstance(session["module_id"], str) or session["module_id"] not in module_ids
                 or not isinstance(session["topic_ids"], list)):
             raise ValidationError("sessão inválida")
-        if not session["topic_ids"] or len(session["topic_ids"]) != len(set(session["topic_ids"])):
+        if (not session["topic_ids"]
+                or any(not isinstance(item, str) or not item for item in session["topic_ids"])
+                or len(session["topic_ids"]) != len(set(session["topic_ids"]))):
             raise ValidationError("referências de tópicos inválidas")
         for topic_id in session["topic_ids"]:
             if topic_id not in topic_ids or topic_modules[topic_id] != session["module_id"]:
