@@ -206,6 +206,8 @@ class BuildTrilhaTests(unittest.TestCase):
             "missing_reference": lambda m: set_value(m, ["sessions", 0, "module_id"], "missing"),
             "missing_required_section": None,
             "invalid_map_category": None,
+            "map_starts_below_first_level": None,
+            "map_skips_a_level": None,
             "missing_question_feedback": None,
             "incomplete_question_feedback": None,
             "missing_aggregate_diagnosis": None,
@@ -228,6 +230,14 @@ class BuildTrilhaTests(unittest.TestCase):
                     self.write_session("001.md", valid_session("Controle difuso").replace("## Fontes\n\n", ""))
                 elif name == "invalid_map_category":
                     self.write_session("001.md", valid_session("Controle difuso").replace("[conceito]", "[inválido]"))
+                elif name == "map_starts_below_first_level":
+                    self.write_session("001.md", valid_session("Controle difuso").replace(
+                        "- [conceito] Base", "  - [conceito] Base"
+                    ))
+                elif name == "map_skips_a_level":
+                    self.write_session("001.md", valid_session("Controle difuso").replace(
+                        "  - [regra] Aplicação\n    - [excecao] Limite", "    - [excecao] Limite"
+                    ))
                 elif name == "missing_question_feedback":
                     self.write_session("001.md", valid_session("Controle difuso").replace(
                         "### Questão 1\n- Resposta: alternativa A\n- Resultado: correta; gabarito A\n"
@@ -337,7 +347,8 @@ class BuildTrilhaTests(unittest.TestCase):
         self.write_manifest(manifest)
         self.write_session(
             "002.md",
-            "# Direitos fundamentais\n\n## Mapa mental\n\n- [rascunho] Conteúdo em elaboração.\n",
+            "# Direitos fundamentais\n\n## Mapa mental\n\n- [rascunho] Conteúdo em elaboração.\n"
+            "\n### Próxima etapa\n\nConcluir o mapa após a revisão.\n",
         )
 
         result = self.run_build()
@@ -345,6 +356,8 @@ class BuildTrilhaTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         html = (self.trail / "apostila.html").read_text(encoding="utf-8")
         self.assertIn("Conteúdo em elaboração.", html)
+        self.assertIn("<h5>Próxima etapa</h5>", html)
+        self.assertNotIn("### Próxima etapa", html)
 
 
 def set_value(value, path, replacement):

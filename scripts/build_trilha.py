@@ -72,7 +72,7 @@ def session_sections(text, session_title):
     sections = {}
     for index, heading in enumerate(headings):
         end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
-        sections[heading.group(1)] = text[heading.end():end].strip()
+        sections[heading.group(1)] = text[heading.end():end].strip("\n")
     expected_heading = f"# {session_title}"
     if not text.startswith(expected_heading + "\n"):
         raise ValidationError(f"sessão '{session_title}': título deve ser '{expected_heading}'")
@@ -129,14 +129,21 @@ def validate_completed_session(text, session):
     map_lines = [line for line in sections["Mapa mental"].splitlines() if line.strip()]
     if not map_lines:
         raise ValidationError(f"sessão '{session['id']}': mapa mental vazio")
+    previous_level = None
     for line in map_lines:
         match = MAP_ITEM.match(line)
         if not match:
             raise ValidationError(f"sessão '{session['id']}': item de mapa inválido")
-        if len(match.group(1).expandtabs(2)) // 2 >= 3:
+        level = len(match.group(1).expandtabs(2)) // 2 + 1
+        if level > 3:
             raise ValidationError(f"sessão '{session['id']}': mapa tem mais de três níveis")
+        if previous_level is None and level != 1:
+            raise ValidationError(f"sessão '{session['id']}': mapa deve iniciar no primeiro nível")
+        if previous_level is not None and level > previous_level + 1:
+            raise ValidationError(f"sessão '{session['id']}': mapa não pode saltar níveis")
         if match.group(2) not in MAP_CATEGORIES:
             raise ValidationError(f"sessão '{session['id']}': categoria de mapa inválida")
+        previous_level = level
     validate_question_feedback(sections["Questões e feedback"], session["id"])
 
 
@@ -347,7 +354,7 @@ def html_session(text, session_anchor):
             if line[3:] == "Mapa mental":
                 index += 1
                 map_lines = []
-                while index < len(lines) and not lines[index].startswith(("# ", "## ")):
+                while index < len(lines) and not lines[index].startswith(("# ", "## ", "### ")):
                     if lines[index].strip():
                         map_lines.append(lines[index])
                     index += 1
