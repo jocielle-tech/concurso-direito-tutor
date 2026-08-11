@@ -82,6 +82,36 @@ class BuildTrilhaTests(unittest.TestCase):
         markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
         self.assertIn("Progresso global: 25%", markdown)
 
+    def test_extreme_finite_weights_calculate_progress_without_overflow(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["modules"][0]["topics"][0]["weight"] = 1e308
+        manifest["modules"][0]["topics"][1]["weight"] = 1e308
+        self.write_manifest(manifest)
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
+        self.assertIn("Progresso global: 50%", markdown)
+
+    def test_nonfinite_json_weights_are_rejected_without_changing_outputs(self):
+        self.write_valid_trail()
+        valid_json = json.dumps(self.valid_manifest())
+        for value in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(value=value):
+                (self.trail / "apostila.md").write_bytes(b"valid markdown")
+                (self.trail / "apostila.html").write_bytes(b"valid html")
+                invalid_json = valid_json.replace('"weight": 1', f'"weight": {value}', 1)
+                (self.trail / "trilha.json").write_text(invalid_json, encoding="utf-8")
+
+                result = self.run_build()
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("peso deve ser finito", result.stderr)
+                self.assertEqual((self.trail / "apostila.md").read_bytes(), b"valid markdown")
+                self.assertEqual((self.trail / "apostila.html").read_bytes(), b"valid html")
+
     def test_check_validates_without_creating_or_changing_outputs(self):
         self.write_valid_trail()
         result = self.run_build("--check")
@@ -178,6 +208,22 @@ class BuildTrilhaTests(unittest.TestCase):
         html = (self.trail / "apostila.html").read_text(encoding="utf-8")
         self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", html)
         self.assertNotIn('href="javascript:', html.lower())
+
+    def test_html_url_query_escapes_ampersand_once(self):
+        self.write_valid_trail()
+        self.write_session(
+            "001.md",
+            valid_session("Controle difuso").replace(
+                "Texto de estudo.", "[fonte](https://exemplo/?a=1&b=2)"
+            ),
+        )
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        self.assertIn('href="https://exemplo/?a=1&amp;b=2"', html)
+        self.assertNotIn("&amp;amp;", html)
 
     def test_recalibrated_edital_trail_is_identified(self):
         self.write_valid_trail()

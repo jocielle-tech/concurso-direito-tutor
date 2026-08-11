@@ -7,6 +7,7 @@ import json
 import re
 import sys
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -30,6 +31,10 @@ MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
 
 class ValidationError(ValueError):
     pass
+
+
+def reject_nonfinite_json(_value):
+    raise ValidationError("peso deve ser finito")
 
 
 def require_mapping(value, label):
@@ -108,7 +113,11 @@ def inside_trail(trail, relative_path):
 def load_and_validate(trail):
     manifest_file = trail / "trilha.json"
     try:
-        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        manifest = json.loads(
+            manifest_file.read_text(encoding="utf-8"),
+            parse_float=Decimal,
+            parse_constant=reject_nonfinite_json,
+        )
     except FileNotFoundError as exc:
         raise ValidationError("trilha.json não encontrado") from exc
     except json.JSONDecodeError as exc:
@@ -141,8 +150,14 @@ def load_and_validate(trail):
             topic_id = topic["id"]
             if not isinstance(topic_id, str) or not topic_id or topic_id in topic_ids:
                 raise ValidationError("tópicos: IDs duplicados ou inválidos")
-            if (not isinstance(topic["weight"], (int, float)) or isinstance(topic["weight"], bool)
-                    or topic["weight"] <= 0):
+            weight = topic["weight"]
+            valid_weight = (
+                isinstance(weight, (int, Decimal))
+                and not isinstance(weight, bool)
+                and (not isinstance(weight, Decimal) or weight.is_finite())
+                and weight > 0
+            )
+            if not valid_weight:
                 raise ValidationError("peso deve ser numérico positivo")
             if topic["status"] not in STATUSES or not isinstance(topic["sessions"], list):
                 raise ValidationError("tópico inválido")
@@ -208,14 +223,22 @@ def markdown_document(manifest, session_files):
 
 
 def safe_inline(text):
-    escaped = html.escape(text, quote=True)
-    def link(match):
+    parts = []
+    position = 0
+    for match in LINK.finditer(text):
+        parts.append(html.escape(text[position:match.start()], quote=True))
         label, url = match.group(1), match.group(2).strip()
         scheme = urlparse(url).scheme.lower()
         if scheme and scheme not in {"http", "https", "mailto"}:
-            return label
-        return f'<a href="{html.escape(url, quote=True)}">{label}</a>'
-    return LINK.sub(link, escaped)
+            parts.append(html.escape(label, quote=True))
+        else:
+            parts.append(
+                f'<a href="{html.escape(url, quote=True)}">'
+                f"{html.escape(label, quote=True)}</a>"
+            )
+        position = match.end()
+    parts.append(html.escape(text[position:], quote=True))
+    return "".join(parts)
 
 
 def html_session(text):

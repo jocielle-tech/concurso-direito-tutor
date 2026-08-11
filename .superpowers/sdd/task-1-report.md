@@ -74,3 +74,45 @@ OK
 Revisei o fluxo de escrita: validação e geração de ambas as strings ocorrem antes de qualquer substituição das saídas; cada escrita passa por temporário no diretório da trilha. Revisei referências em ambos os sentidos (sessão→módulo/tópico e tópico→sessão), contenção de caminhos via `resolve`/`relative_to`, e a sanitização de HTML/URLs. Não identifiquei problemas bloqueadores no escopo da Task 1.
 
 Limitação consciente: o renderizador HTML é um conversor Markdown mínimo, voltado à estrutura determinística exigida (títulos, parágrafos, itens e links seguros); ele não pretende implementar todo o padrão Markdown.
+
+## Correção pós-revisão — pesos e escape de URLs
+
+### RED registrado
+
+Foram adicionados, antes de qualquer alteração em `scripts/build_trilha.py`, três testes de regressão: pesos finitos de `1e308` devem gerar 50%; `NaN`, `Infinity` e `-Infinity` devem ser rejeitados preservando as saídas; e o query string `?a=1&b=2` deve aparecer em um `href` com um único escape de `&`.
+
+```text
+$ python3 -m unittest -v tests.test_build_trilha.BuildTrilhaTests.test_extreme_finite_weights_calculate_progress_without_overflow tests.test_build_trilha.BuildTrilhaTests.test_nonfinite_json_weights_are_rejected_without_changing_outputs tests.test_build_trilha.BuildTrilhaTests.test_html_url_query_escapes_ampersand_once
+test_extreme_finite_weights_calculate_progress_without_overflow (...) ... FAIL
+test_nonfinite_json_weights_are_rejected_without_changing_outputs (...) ... FAIL
+test_html_url_query_escapes_ampersand_once (...) ... FAIL
+
+ValueError: cannot convert float NaN to integer
+AssertionError: 'peso deve ser finito' not found in traceback/output anterior
+AssertionError: 'href="https://exemplo/?a=1&amp;b=2"' not found; saída continha '&amp;amp;'
+
+Ran 3 tests in 0.365s
+FAILED (failures=5; os três subcasos não finitos falharam)
+```
+
+### Implementação e GREEN
+
+- O parser JSON agora usa `parse_float=Decimal`, preservando pesos decimais grandes sem overflow binário, e recusa constantes JSON não finitas por `parse_constant`.
+- A validação aceita somente `int` ou `Decimal` finito, positivo e não booleano.
+- `safe_inline` agora encontra links no texto bruto, escapa texto/rótulo/URL separadamente e só então monta a âncora. Isso evita reescapar `&amp;`.
+
+```text
+$ python3 -m unittest -v [os 3 testes de regressão]
+Ran 3 tests in 0.393s
+OK
+
+$ git diff --check && python3 -B -m py_compile scripts/build_trilha.py && python3 -B -m unittest discover -s tests -v
+Ran 10 tests in 1.115s
+OK
+```
+
+`git diff --check` e `py_compile` não emitiram erros. A suíte completa inclui os três regressivos e os sete testes originais.
+
+### Self-review da correção
+
+Revisei que `Decimal` é introduzido já no parse, portanto `1e308 + 1e308` não usa soma `float`; para o caso coberto, o cálculo ponderado fica exato e retorna 50%. `NaN`, `Infinity` e `-Infinity` são interceptados antes da validação/renderização, preservando as saídas existentes. No escape de links, cada fragmento é escapado uma única vez, e protocolos não permitidos continuam sem âncora ativa. Não identifiquei pendências bloqueadoras.
