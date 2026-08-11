@@ -82,6 +82,28 @@ class BuildTrilhaTests(unittest.TestCase):
         markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
         self.assertIn("Progresso global: 25%", markdown)
 
+    def test_boolean_schema_version_is_rejected(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["schema_version"] = True
+        self.write_manifest(manifest)
+
+        result = self.run_build()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("schema_version deve ser o inteiro 1", result.stderr)
+
+    def test_decimal_schema_version_is_rejected(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["schema_version"] = 1.0
+        self.write_manifest(manifest)
+
+        result = self.run_build()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("schema_version deve ser o inteiro 1", result.stderr)
+
     def test_extreme_finite_weights_calculate_progress_without_overflow(self):
         self.write_valid_trail()
         manifest = self.valid_manifest()

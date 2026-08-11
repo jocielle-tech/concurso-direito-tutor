@@ -116,3 +116,32 @@ OK
 ### Self-review da correção
 
 Revisei que `Decimal` é introduzido já no parse, portanto `1e308 + 1e308` não usa soma `float`; para o caso coberto, o cálculo ponderado fica exato e retorna 50%. `NaN`, `Infinity` e `-Infinity` são interceptados antes da validação/renderização, preservando as saídas existentes. No escape de links, cada fragmento é escapado uma única vez, e protocolos não permitidos continuam sem âncora ativa. Não identifiquei pendências bloqueadoras.
+
+## Correção pós-revisão — tipo estrito de `schema_version`
+
+Foram criados, antes da alteração de produção, testes separados para `schema_version: true` e `schema_version: 1.0`.
+
+```text
+$ python3 -m unittest -v tests.test_build_trilha.BuildTrilhaTests.test_boolean_schema_version_is_rejected tests.test_build_trilha.BuildTrilhaTests.test_decimal_schema_version_is_rejected
+test_boolean_schema_version_is_rejected (...) ... FAIL
+test_decimal_schema_version_is_rejected (...) ... FAIL
+
+AssertionError: 0 == 0
+
+Ran 2 tests in 0.147s
+FAILED (failures=2)
+```
+
+A validação agora exige `type(schema_version) is int` antes de comparar o valor a `1`; isso exclui explicitamente `bool` e o `Decimal` que representa o número JSON `1.0`.
+
+```text
+$ python3 -B -m unittest -v [2 testes focados]
+Ran 2 tests in 0.103s
+OK
+
+$ git diff --check && python3 -B -m py_compile scripts/build_trilha.py && python3 -B -m unittest discover -s tests -v
+Ran 12 tests in 1.202s
+OK
+```
+
+`git diff --check` e `py_compile` concluíram sem erros. Self-review: `type(...) is int` é intencionalmente mais estrito que `isinstance(..., int)`, pois `bool` é subclasse de `int` em Python; nenhuma outra versão do schema passa pela igualdade numérica implícita.

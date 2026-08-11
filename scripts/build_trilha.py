@@ -127,8 +127,8 @@ def load_and_validate(trail):
         "schema_version", "title", "slug", "source", "exam", "banca", "recalibrated",
         "modules", "sessions",
     ), "manifesto")
-    if manifest["schema_version"] != 1:
-        raise ValidationError("schema_version deve ser 1")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
+        raise ValidationError("schema_version deve ser o inteiro 1")
     if not isinstance(manifest["title"], str) or not isinstance(manifest["slug"], str):
         raise ValidationError("title e slug devem ser texto")
     if manifest["source"] not in SOURCES:
