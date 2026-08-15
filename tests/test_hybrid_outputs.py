@@ -254,6 +254,41 @@ class HybridOutputTests(unittest.TestCase):
             document,
         )
 
+    def test_mobile_sidebar_stays_available_without_javascript(self):
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        mobile_css = document.split("@media (max-width: 800px) {", 1)[1].split(
+            "@media print", 1
+        )[0]
+        self.assertRegex(mobile_css, r"(?m)^  #trail-sidebar \{ position: static;")
+        self.assertNotRegex(
+            mobile_css,
+            r"(?m)^  #trail-sidebar \{[^\n]*transform: translateX\(-105%\)",
+        )
+        self.assertRegex(
+            mobile_css,
+            r"(?m)^  \.js #trail-sidebar \{[^\n]*transform: translateX\(-105%\)",
+        )
+        self.assertIn("  .js #sidebar-toggle { display: block;", mobile_css)
+        self.assertIn(
+            "setSidebarState(false);\ndocument.documentElement.classList.add('js');",
+            document,
+        )
+
+    def test_index_scrolling_respects_reduced_motion(self):
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        self.assertIn("html { scroll-behavior: smooth; }", document)
+        self.assertIn(
+            "@media (prefers-reduced-motion: reduce) { "
+            "html { scroll-behavior: auto; } }",
+            document,
+        )
+
     @unittest.skipUnless(find_spec("scripts.trilha_outputs"), "output publisher not implemented yet")
     def test_publish_bundle_restores_every_prior_file_when_a_replace_fails(self):
         from scripts.trilha_outputs import publish_bundle

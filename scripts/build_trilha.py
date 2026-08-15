@@ -525,6 +525,7 @@ def html_document(manifest, session_files):
     return f'''<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>{html.escape(manifest['title'])}</title>
 <style>
+html {{ scroll-behavior: smooth; }}
 body {{ font-family: system-ui, sans-serif; color: #111827; margin: 0; line-height: 1.5; }}
 #trail-layout {{ display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 #trail-sidebar {{ position: sticky; top: 1rem; align-self: start; max-height: calc(100vh - 2rem); overflow: auto; padding: 1rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; }}
@@ -537,10 +538,13 @@ a:focus-visible, button:focus-visible {{ outline: 3px solid #f59e0b; outline-off
 .progress {{ height: 1rem; background: #e5e7eb; }} .progress > span {{ display: block; height: 100%; background: #2563EB; }}
 .map-item {{ border-left: .35rem solid; padding-left: .6rem; }}
 @media (max-width: 800px) {{
-  #trail-layout {{ display: block; padding: 1rem; }} #sidebar-toggle {{ display: block; margin: 1rem; position: relative; z-index: 2; }}
-  #trail-sidebar {{ position: fixed; z-index: 1; inset: 0 auto 0 0; width: min(18rem, 85vw); max-height: none; border-radius: 0; transform: translateX(-105%); transition: transform .2s ease; }}
-  #trail-sidebar.is-open {{ transform: translateX(0); }}
+  #trail-layout {{ display: block; padding: 1rem; }}
+  #trail-sidebar {{ position: static; max-height: none; overflow: visible; }}
+  .js #sidebar-toggle {{ display: block; margin: 1rem; position: relative; z-index: 2; }}
+  .js #trail-sidebar {{ position: fixed; z-index: 1; inset: 0 auto 0 0; width: min(18rem, 85vw); overflow: auto; border-radius: 0; transform: translateX(-105%); transition: transform .2s ease; }}
+  .js #trail-sidebar.is-open {{ transform: translateX(0); }}
 }}
+@media (prefers-reduced-motion: reduce) {{ html {{ scroll-behavior: auto; }} }}
 @media print {{ #trail-sidebar, #sidebar-toggle {{ display: none !important; }} #trail-layout {{ display: block; max-width: none; padding: 0; }} a {{ color: #000; text-decoration: none; }} }}
 </style></head><body>
 <button id="sidebar-toggle" type="button" aria-controls="trail-sidebar" aria-expanded="false">Índice</button>
@@ -563,6 +567,7 @@ const setSidebarState = open => {{
 toggle.addEventListener('click', () => setSidebarState(sidebar.hidden));
 mobileQuery.addEventListener('change', () => setSidebarState(false));
 setSidebarState(false);
+document.documentElement.classList.add('js');
 const links = new Map([...document.querySelectorAll('[data-topic-link]')]
   .map(link => [link.dataset.topicLink, link]));
 const sections = [...document.querySelectorAll('[data-topic-section]')];
