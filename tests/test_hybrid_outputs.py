@@ -107,6 +107,15 @@ class HybridOutputTests(unittest.TestCase):
             if relative.endswith(".md"):
                 self.assertTrue((self.trail / relative).read_text(encoding="utf-8").startswith(GENERATED_NOTICE))
 
+    def test_canonical_build_does_not_create_root_apostila_duplicates(self):
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.trail / "apostila/apostila.md").is_file())
+        self.assertTrue((self.trail / "apostila/apostila.html").is_file())
+        self.assertFalse((self.trail / "apostila.md").exists())
+        self.assertFalse((self.trail / "apostila.html").exists())
+
     def test_html_sidebar_links_and_scrollspy(self):
         result = self.run_build()
 

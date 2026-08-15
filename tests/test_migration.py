@@ -109,6 +109,10 @@ class MigrationTests(unittest.TestCase):
                 (self.trail / session["file"]).read_bytes(), before[original_files[session["id"]]]
             )
         self.assertFalse((self.trail / "sessoes").exists())
+        self.assertTrue((self.trail / "apostila/apostila.md").is_file())
+        self.assertTrue((self.trail / "apostila/apostila.html").is_file())
+        self.assertFalse((self.trail / "apostila.md").exists())
+        self.assertFalse((self.trail / "apostila.html").exists())
 
         backups = list((self.trail / "backups").glob("migracao-*.zip"))
         self.assertEqual(len(backups), 1)

@@ -18,6 +18,7 @@ class BuildTrilhaTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.trail = Path(self.tmp.name) / "trilha"
         self.trail.mkdir()
+        (self.trail / "apostila").mkdir()
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -88,7 +89,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
+        markdown = (self.trail / "apostila/apostila.md").read_text(encoding="utf-8")
         self.assertIn("Progresso global: 25%", markdown)
 
     def test_boolean_schema_version_is_rejected(self):
@@ -123,7 +124,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
+        markdown = (self.trail / "apostila/apostila.md").read_text(encoding="utf-8")
         self.assertIn("Progresso global: 50%", markdown)
 
     def test_nonfinite_json_weights_are_rejected_without_changing_outputs(self):
@@ -131,8 +132,8 @@ class BuildTrilhaTests(unittest.TestCase):
         valid_json = json.dumps(self.valid_manifest())
         for value in ("NaN", "Infinity", "-Infinity"):
             with self.subTest(value=value):
-                (self.trail / "apostila.md").write_bytes(b"valid markdown")
-                (self.trail / "apostila.html").write_bytes(b"valid html")
+                (self.trail / "apostila/apostila.md").write_bytes(b"valid markdown")
+                (self.trail / "apostila/apostila.html").write_bytes(b"valid html")
                 invalid_json = valid_json.replace('"weight": 1', f'"weight": {value}', 1)
                 (self.trail / "trilha.json").write_text(invalid_json, encoding="utf-8")
 
@@ -140,26 +141,26 @@ class BuildTrilhaTests(unittest.TestCase):
 
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("peso deve ser finito", result.stderr)
-                self.assertEqual((self.trail / "apostila.md").read_bytes(), b"valid markdown")
-                self.assertEqual((self.trail / "apostila.html").read_bytes(), b"valid html")
+                self.assertEqual((self.trail / "apostila/apostila.md").read_bytes(), b"valid markdown")
+                self.assertEqual((self.trail / "apostila/apostila.html").read_bytes(), b"valid html")
 
     def test_check_validates_without_creating_or_changing_outputs(self):
         self.write_valid_trail()
         result = self.run_build("--check")
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse((self.trail / "apostila.md").exists())
-        self.assertFalse((self.trail / "apostila.html").exists())
+        self.assertFalse((self.trail / "apostila/apostila.md").exists())
+        self.assertFalse((self.trail / "apostila/apostila.html").exists())
         before_md = b"previous markdown"
         before_html = b"previous html"
-        (self.trail / "apostila.md").write_bytes(before_md)
-        (self.trail / "apostila.html").write_bytes(before_html)
+        (self.trail / "apostila/apostila.md").write_bytes(before_md)
+        (self.trail / "apostila/apostila.html").write_bytes(before_html)
 
         result = self.run_build("--check")
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.trail / "apostila.md").read_bytes(), before_md)
-        self.assertEqual((self.trail / "apostila.html").read_bytes(), before_html)
+        self.assertEqual((self.trail / "apostila/apostila.md").read_bytes(), before_md)
+        self.assertEqual((self.trail / "apostila/apostila.html").read_bytes(), before_html)
 
     def test_targeted_completed_session_requires_exactly_twenty_questions(self):
         self.write_valid_trail()
@@ -217,15 +218,15 @@ class BuildTrilhaTests(unittest.TestCase):
                 self.write_session("001.md", text)
                 before_md = b"previous markdown"
                 before_html = b"previous html"
-                (self.trail / "apostila.md").write_bytes(before_md)
-                (self.trail / "apostila.html").write_bytes(before_html)
+                (self.trail / "apostila/apostila.md").write_bytes(before_md)
+                (self.trail / "apostila/apostila.html").write_bytes(before_html)
 
                 result = self.run_build()
 
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("Traceback", result.stderr)
-                self.assertEqual((self.trail / "apostila.md").read_bytes(), before_md)
-                self.assertEqual((self.trail / "apostila.html").read_bytes(), before_html)
+                self.assertEqual((self.trail / "apostila/apostila.md").read_bytes(), before_md)
+                self.assertEqual((self.trail / "apostila/apostila.html").read_bytes(), before_html)
 
     def test_oversized_question_number_reports_validation_error_without_traceback(self):
         self.write_valid_trail()
@@ -250,8 +251,8 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        markdown = (self.trail / "apostila/apostila.md").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         self.assertIn("## Índice", markdown)
         self.assertIn("Régua de progresso: 25%", markdown)
         self.assertIn('role="progressbar"', html)
@@ -270,8 +271,8 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        markdown = (self.trail / "apostila.md").read_text(encoding="utf-8")
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        markdown = (self.trail / "apostila/apostila.md").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         self.assertIn("[Direito Constitucional](#modulo-constitucional)", markdown)
         self.assertIn("[Controle difuso](#sessao-s001)", markdown)
         self.assertIn('<a id="modulo-constitucional"></a>', markdown)
@@ -284,10 +285,16 @@ class BuildTrilhaTests(unittest.TestCase):
     def test_same_input_produces_byte_identical_outputs(self):
         self.write_valid_trail()
         self.assertEqual(self.run_build().returncode, 0)
-        first = tuple((self.trail / f).read_bytes() for f in ("apostila.md", "apostila.html"))
+        first = tuple(
+            (self.trail / f).read_bytes()
+            for f in ("apostila/apostila.md", "apostila/apostila.html")
+        )
 
         self.assertEqual(self.run_build().returncode, 0)
-        second = tuple((self.trail / f).read_bytes() for f in ("apostila.md", "apostila.html"))
+        second = tuple(
+            (self.trail / f).read_bytes()
+            for f in ("apostila/apostila.md", "apostila/apostila.html")
+        )
         self.assertEqual(second, first)
 
     def test_invalid_manifests_leave_existing_outputs_untouched(self):
@@ -318,8 +325,8 @@ class BuildTrilhaTests(unittest.TestCase):
                 original_trail = self.trail
                 self.trail = case_dir
                 self.write_valid_trail()
-                (self.trail / "apostila.md").write_bytes(b"valid markdown")
-                (self.trail / "apostila.html").write_bytes(b"valid html")
+                (self.trail / "apostila/apostila.md").write_bytes(b"valid markdown")
+                (self.trail / "apostila/apostila.html").write_bytes(b"valid html")
                 if name == "invalid_json":
                     (self.trail / "trilha.json").write_text(mutate, encoding="utf-8")
                 elif name == "missing_required_section":
@@ -352,8 +359,8 @@ class BuildTrilhaTests(unittest.TestCase):
                 result = self.run_build()
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("Traceback", result.stderr)
-                self.assertEqual((self.trail / "apostila.md").read_bytes(), b"valid markdown")
-                self.assertEqual((self.trail / "apostila.html").read_bytes(), b"valid html")
+                self.assertEqual((self.trail / "apostila/apostila.md").read_bytes(), b"valid markdown")
+                self.assertEqual((self.trail / "apostila/apostila.html").read_bytes(), b"valid html")
                 self.trail = original_trail
 
     def test_escapes_raw_html_and_disables_javascript_links(self):
@@ -368,7 +375,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", html)
         self.assertNotIn('href="javascript:', html.lower())
 
@@ -384,7 +391,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         self.assertIn('href="https://exemplo/?a=1&amp;b=2"', html)
         self.assertNotIn("&amp;amp;", html)
 
@@ -398,7 +405,10 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Trilha recalibrada", (self.trail / "apostila.md").read_text(encoding="utf-8"))
+        self.assertIn(
+            "Trilha recalibrada",
+            (self.trail / "apostila/apostila.md").read_text(encoding="utf-8"),
+        )
 
     def test_html_renders_level_three_session_headings_without_markdown_markers(self):
         self.write_valid_trail()
@@ -406,7 +416,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         self.assertIn("<h5>Questão 1</h5>", html)
         self.assertIn("<h5>Diagnóstico agregado</h5>", html)
         self.assertNotIn("### Questão 1", html)
@@ -418,7 +428,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         self.assertIn('<ul class="mind-map">', html)
         self.assertIn('class="map-item map-level-1"', html)
         self.assertIn('class="map-item map-level-2"', html)
@@ -446,7 +456,7 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        html = (self.trail / "apostila.html").read_text(encoding="utf-8")
+        html = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
         in_progress_html = html[html.index('id="sessao-s002"'):]
         self.assertIn("Conteúdo em elaboração.", html)
         self.assertIn("Rascunho com salto de nível.", html)

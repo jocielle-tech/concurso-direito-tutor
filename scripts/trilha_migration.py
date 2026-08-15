@@ -248,6 +248,8 @@ def migrate_legacy_trail(trail, build_staged, canonical_path, now):
                 legacy_paths.append(old_relative)
         manifest_path.write_text(_rewrite_session_files(manifest_text, canonical_files), encoding="utf-8")
         _remove_legacy_sources(stage, legacy_paths)
+        for legacy_output in ("apostila.md", "apostila.html"):
+            (stage / legacy_output).unlink(missing_ok=True)
         build_staged(stage)
 
         trail.replace(swap_path)

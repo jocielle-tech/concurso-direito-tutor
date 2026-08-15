@@ -593,9 +593,6 @@ def build_trail(trail):
     document = html_document(manifest, session_files)
     pdf = render_pdf(manifest, session_files)
     outputs = build_output_bundle(trail, manifest, session_files, markdown, document, pdf)
-    # Keep the original two entry points during the staged layout transition.
-    outputs[Path("apostila.md")] = markdown.encode("utf-8")
-    outputs[Path("apostila.html")] = document.encode("utf-8")
     publish_bundle(trail, outputs)
 
 
