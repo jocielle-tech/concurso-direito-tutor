@@ -509,6 +509,12 @@ def html_document(manifest, session_files):
                 for session in manifest["sessions"]
                 if session["module_id"] == module["id"] and session["topic_ids"][0] == topic["id"]
             )
+            + "\n".join(
+                f'<p class="shared-session">Sessão compartilhada: <a href="#{html.escape(anchor_id("sessao", session["id"]), quote=True)}">{html.escape(session["title"])}</a></p>'
+                for session in manifest["sessions"]
+                if (session["module_id"] == module["id"] and topic["id"] in session["topic_ids"]
+                    and session["topic_ids"][0] != topic["id"])
+            )
             + "</section>"
             for topic in module["topics"]
         )
@@ -531,7 +537,7 @@ a:focus-visible, button:focus-visible {{ outline: 3px solid #f59e0b; outline-off
 .progress {{ height: 1rem; background: #e5e7eb; }} .progress > span {{ display: block; height: 100%; background: #2563EB; }}
 .map-item {{ border-left: .35rem solid; padding-left: .6rem; }}
 @media (max-width: 800px) {{
-  #trail-layout {{ display: block; padding: 1rem; }} #sidebar-toggle {{ display: block; margin: 1rem; }}
+  #trail-layout {{ display: block; padding: 1rem; }} #sidebar-toggle {{ display: block; margin: 1rem; position: relative; z-index: 2; }}
   #trail-sidebar {{ position: fixed; z-index: 1; inset: 0 auto 0 0; width: min(18rem, 85vw); max-height: none; border-radius: 0; transform: translateX(-105%); transition: transform .2s ease; }}
   #trail-sidebar.is-open {{ transform: translateX(0); }}
 }}
@@ -560,6 +566,7 @@ setSidebarState(false);
 const links = new Map([...document.querySelectorAll('[data-topic-link]')]
   .map(link => [link.dataset.topicLink, link]));
 const sections = [...document.querySelectorAll('[data-topic-section]')];
+let navigationTarget = null;
 const activate = id => {{
   links.forEach((link, key) => {{
     const active = key === id;
@@ -569,7 +576,13 @@ const activate = id => {{
   }});
   if (id) history.replaceState(null, '', `#topico-${{encodeURIComponent(id)}}`);
 }};
+links.forEach((link, key) => link.addEventListener('click', () => {{
+  navigationTarget = key;
+  activate(key);
+  window.setTimeout(() => {{ navigationTarget = null; }}, 500);
+}}));
 const observer = new IntersectionObserver(entries => {{
+  if (navigationTarget) return;
   const visible = entries.filter(entry => entry.isIntersecting)
     .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
   if (visible) activate(visible.target.dataset.topicSection);

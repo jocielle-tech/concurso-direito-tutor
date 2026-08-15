@@ -181,6 +181,10 @@ class HybridOutputTests(unittest.TestCase):
             "setSidebarState(false);",
         ):
             self.assertIn(behavior, document)
+        self.assertIn(
+            "#sidebar-toggle { display: block; margin: 1rem; position: relative; z-index: 2; }",
+            document,
+        )
 
     @unittest.skipUnless(find_spec("scripts.trilha_outputs"), "output publisher not implemented yet")
     def test_publish_bundle_restores_every_prior_file_when_a_replace_fails(self):
@@ -249,6 +253,39 @@ class HybridOutputTests(unittest.TestCase):
         self.assertNotRegex(questions, r"(?m)^### Questão 1$")
         self.assertNotIn("### Diagnóstico agregado", questions)
         self.assert_every_local_link_resolves()
+
+    def test_html_secondary_topic_discloses_shared_session(self):
+        manifest = json.loads((self.trail / "trilha.json").read_text(encoding="utf-8"))
+        manifest["modules"][0]["topics"].append({
+            "id": "direitos",
+            "title": "Direitos fundamentais",
+            "weight": 1,
+            "status": "completed",
+            "sessions": ["s001"],
+        })
+        manifest["sessions"][0]["topic_ids"] = ["controle", "direitos"]
+        (self.trail / "trilha.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        session_path = self.trail / (
+            "modulos/01-direito-constitucional/topicos/01-controle-difuso/"
+            "sessoes/001-controle-difuso.md"
+        )
+        session_path.write_text(
+            valid_session("Controle difuso", topic_ids=("controle", "direitos")), encoding="utf-8"
+        )
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        secondary = re.search(
+            r'<section id="topico-direitos".*?</section>', document, re.DOTALL
+        )
+        self.assertIsNotNone(secondary)
+        self.assertIn("Sessão compartilhada", secondary.group(0))
+        self.assertIn('href="#sessao-s001"', secondary.group(0))
+        self.assertIn("let navigationTarget = null;", document)
+        self.assertIn("navigationTarget = key;", document)
+        self.assertIn("if (navigationTarget) return;", document)
 
     def test_panels_link_the_tree_and_agendas_use_review_details_not_session_dates(self):
         result = self.run_build()
