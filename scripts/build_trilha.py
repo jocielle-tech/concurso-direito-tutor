@@ -16,9 +16,11 @@ from urllib.parse import quote, urlparse
 try:
     from scripts.trilha_outputs import build_output_bundle, canonical_session_relative_path, publish_bundle
     from scripts.trilha_migration import is_legacy_trail, migrate_legacy_trail
+    from scripts.trilha_pdf import PdfDependencyError, render_pdf
 except ModuleNotFoundError:  # Direct ``python scripts/build_trilha.py`` execution.
     from trilha_outputs import build_output_bundle, canonical_session_relative_path, publish_bundle
     from trilha_migration import is_legacy_trail, migrate_legacy_trail
+    from trilha_pdf import PdfDependencyError, render_pdf
 
 
 SOURCES = {"provisional", "edital"}
@@ -589,7 +591,8 @@ def build_trail(trail):
     manifest, session_files = load_and_validate(trail)
     markdown = markdown_document(manifest, session_files)
     document = html_document(manifest, session_files)
-    outputs = build_output_bundle(trail, manifest, session_files, markdown, document)
+    pdf = render_pdf(manifest, session_files)
+    outputs = build_output_bundle(trail, manifest, session_files, markdown, document, pdf)
     # Keep the original two entry points during the staged layout transition.
     outputs[Path("apostila.md")] = markdown.encode("utf-8")
     outputs[Path("apostila.html")] = document.encode("utf-8")
@@ -613,7 +616,7 @@ def main(argv=None):
             migrate_legacy_trail(trail, build_trail, canonical_session_relative_path, datetime.now())
         elif not args.check:
             build_trail(trail)
-    except (ValidationError, OSError, UnicodeDecodeError) as exc:
+    except (ValidationError, PdfDependencyError, OSError, UnicodeDecodeError) as exc:
         print(f"erro: {exc}", file=sys.stderr)
         return 1
     return 0
