@@ -120,6 +120,27 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual(archive.read("apostila.md"), before["apostila.md"])
             self.assertEqual(archive.read("apostila.html"), before["apostila.html"])
 
+    def test_migration_preserves_numeric_literals_except_for_session_paths(self):
+        self.write_legacy_trail()
+        manifest_path = self.trail / "trilha.json"
+        original = manifest_path.read_text(encoding="utf-8")
+        original = original.replace('"weight": 1', '"weight": 0.12345678901234567890123456789', 1)
+        original = original.replace('"weight": 1', '"weight": 1e309', 1)
+        manifest_path.write_text(original, encoding="utf-8")
+
+        result = self.run_build("--migrate")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = original.replace(
+            '"file": "sessoes/001.md"',
+            '"file": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md"',
+        ).replace(
+            '"file": "sessoes/002.md"',
+            '"file": "modulos/01-direito-constitucional/topicos/02-direitos-fundamentais/sessoes/002-direitos-fundamentais.md"',
+        )
+        self.assertEqual(manifest_path.read_text(encoding="utf-8"), expected)
+        self.assertEqual(self.run_build("--check").returncode, 0)
+
     def test_build_failure_rolls_back_without_writing_the_original_tree(self):
         from scripts.trilha_migration import migrate_legacy_trail
 
@@ -170,6 +191,22 @@ class MigrationTests(unittest.TestCase):
 
         self.assertEqual(snapshot_tree(self.trail), before)
         self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
+
+    def test_preexisting_backup_timestamp_is_rejected_without_overwriting_it(self):
+        from scripts.trilha_migration import migrate_legacy_trail
+
+        self.write_legacy_trail()
+        now = datetime(2026, 8, 15, 12, 30, 45)
+        backup = self.trail / "backups/migracao-20260815-123045.zip"
+        backup.parent.mkdir()
+        backup.write_bytes(b"previous backup bytes")
+        before = snapshot_tree(self.trail)
+
+        with self.assertRaisesRegex(OSError, "backup de migração já existe"):
+            migrate_legacy_trail(self.trail, lambda _stage: None, canonical_session_relative_path, now)
+
+        self.assertEqual(snapshot_tree(self.trail), before)
+        self.assertEqual(backup.read_bytes(), b"previous backup bytes")
 
 
 if __name__ == "__main__":
