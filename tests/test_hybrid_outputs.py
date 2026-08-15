@@ -18,7 +18,7 @@ class HybridOutputTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.trail = Path(self.tmp.name) / "trilha"
-        (self.trail / "sessoes").mkdir(parents=True)
+        self.trail.mkdir()
         self.write_trail()
 
     def tearDown(self):
@@ -51,13 +51,15 @@ class HybridOutputTests(unittest.TestCase):
                 "status": "completed",
                 "module_id": "constitucional",
                 "topic_ids": ["controle"],
-                "file": "sessoes/001.md",
+                "file": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md",
             }],
         }
         (self.trail / "trilha.json").write_text(
             json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
         )
-        (self.trail / "sessoes/001.md").write_text(
+        session_path = self.trail / "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md"
+        session_path.parent.mkdir(parents=True, exist_ok=True)
+        session_path.write_text(
             valid_session("Controle difuso"), encoding="utf-8"
         )
 
@@ -129,7 +131,7 @@ class HybridOutputTests(unittest.TestCase):
         })
         manifest["sessions"][0]["topic_ids"] = ["controle", "direitos"]
         (self.trail / "trilha.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
-        (self.trail / "sessoes/001.md").write_text(
+        (self.trail / "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md").write_text(
             valid_session("Controle difuso", topic_ids=("controle", "direitos")), encoding="utf-8"
         )
 

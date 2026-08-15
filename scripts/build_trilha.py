@@ -7,15 +7,18 @@ import json
 import re
 import sys
 import tempfile
+from datetime import datetime
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
 try:
-    from scripts.trilha_outputs import build_output_bundle, publish_bundle
+    from scripts.trilha_outputs import build_output_bundle, canonical_session_relative_path, publish_bundle
+    from scripts.trilha_migration import is_legacy_trail, migrate_legacy_trail
 except ModuleNotFoundError:  # Direct ``python scripts/build_trilha.py`` execution.
-    from trilha_outputs import build_output_bundle, publish_bundle
+    from trilha_outputs import build_output_bundle, canonical_session_relative_path, publish_bundle
+    from trilha_migration import is_legacy_trail, migrate_legacy_trail
 
 
 SOURCES = {"provisional", "edital"}
@@ -39,6 +42,7 @@ TARGETED_QUESTION_FIELDS = QUESTION_FIELDS + ("Tópico",)
 DIAGNOSIS_FIELDS = ("Acertos", "Padrões de erro", "Prioridade", "Próxima revisão")
 LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
+MIGRATION_REQUIRED_EXIT = 3
 
 
 class ValidationError(ValueError):
@@ -503,22 +507,35 @@ def atomic_write(path, content):
     temporary_path.replace(path)
 
 
+def build_trail(trail):
+    """Validate and publish every normal derived artifact for one trail."""
+    manifest, session_files = load_and_validate(trail)
+    markdown = markdown_document(manifest, session_files)
+    document = html_document(manifest, session_files)
+    outputs = build_output_bundle(trail, manifest, session_files, markdown, document)
+    # Keep the original two entry points during the staged layout transition.
+    outputs[Path("apostila.md")] = markdown.encode("utf-8")
+    outputs[Path("apostila.html")] = document.encode("utf-8")
+    publish_bundle(trail, outputs)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="somente validar")
+    migration_mode = parser.add_mutually_exclusive_group()
+    migration_mode.add_argument("--check", action="store_true", help="somente validar")
+    migration_mode.add_argument("--migrate", action="store_true", help="migrar uma trilha legada")
     parser.add_argument("trail_dir", type=Path)
     args = parser.parse_args(argv)
     try:
         trail = args.trail_dir.resolve()
         manifest, session_files = load_and_validate(trail)
-        if not args.check:
-            markdown = markdown_document(manifest, session_files)
-            document = html_document(manifest, session_files)
-            outputs = build_output_bundle(trail, manifest, session_files, markdown, document)
-            # Keep the original two entry points during the staged layout transition.
-            outputs[Path("apostila.md")] = markdown.encode("utf-8")
-            outputs[Path("apostila.html")] = document.encode("utf-8")
-            publish_bundle(trail, outputs)
+        if is_legacy_trail(trail, manifest):
+            if not args.migrate:
+                print("MIGRATION_REQUIRED", file=sys.stderr)
+                return MIGRATION_REQUIRED_EXIT
+            migrate_legacy_trail(trail, build_trail, canonical_session_relative_path, datetime.now())
+        elif not args.check:
+            build_trail(trail)
     except (ValidationError, OSError, UnicodeDecodeError) as exc:
         print(f"erro: {exc}", file=sys.stderr)
         return 1

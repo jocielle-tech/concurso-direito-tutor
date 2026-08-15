@@ -17,7 +17,7 @@ class BuildTrilhaTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.trail = Path(self.tmp.name) / "trilha"
-        (self.trail / "sessoes").mkdir(parents=True)
+        self.trail.mkdir()
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -38,7 +38,13 @@ class BuildTrilhaTests(unittest.TestCase):
 
     def write_session(self, name, content=None):
         content = content or valid_session("Controle difuso")
-        (self.trail / "sessoes" / name).write_text(content, encoding="utf-8")
+        paths = {
+            "001.md": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md",
+            "002.md": "modulos/01-direito-constitucional/topicos/02-direitos-fundamentais/sessoes/002-direitos-fundamentais.md",
+        }
+        path = self.trail / paths[name]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
     def valid_manifest(self):
         return {
@@ -64,10 +70,10 @@ class BuildTrilhaTests(unittest.TestCase):
             "sessions": [
                 {"id": "s001", "title": "Controle difuso", "date": "2026-08-10",
                  "status": "completed", "module_id": "constitucional", "topic_ids": ["controle"],
-                 "file": "sessoes/001.md"},
+                 "file": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md"},
                 {"id": "s002", "title": "Direitos fundamentais", "date": "2026-08-11",
                  "status": "not_started", "module_id": "constitucional", "topic_ids": ["direitos"],
-                 "file": "sessoes/002.md"},
+                 "file": "modulos/01-direito-constitucional/topicos/02-direitos-fundamentais/sessoes/002-direitos-fundamentais.md"},
             ],
         }
 
