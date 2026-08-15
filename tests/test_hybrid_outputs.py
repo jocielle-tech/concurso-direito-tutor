@@ -3,6 +3,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from html.parser import HTMLParser
 from importlib.util import find_spec
 from pathlib import Path
 
@@ -12,6 +13,26 @@ from tests.test_build_trilha import valid_session
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "build_trilha.py"
 GENERATED_NOTICE = "<!-- GERADO AUTOMATICAMENTE. NÃO EDITE. -->\n\n"
+
+
+class FragmentLinkParser(HTMLParser):
+    """Collect IDs and in-document links from generated HTML."""
+
+    def __init__(self):
+        super().__init__()
+        self.fragment_links = []
+        self.ids = []
+        self.javascript_links = []
+
+    def handle_starttag(self, _tag, attrs):
+        attributes = dict(attrs)
+        if "id" in attributes:
+            self.ids.append(attributes["id"])
+        href = attributes.get("href")
+        if href and href.startswith("#"):
+            self.fragment_links.append(href[1:])
+        if href and href.lower().startswith("javascript:"):
+            self.javascript_links.append(href)
 
 
 class HybridOutputTests(unittest.TestCase):
@@ -85,6 +106,33 @@ class HybridOutputTests(unittest.TestCase):
         for relative in expected:
             if relative.endswith(".md"):
                 self.assertTrue((self.trail / relative).read_text(encoding="utf-8").startswith(GENERATED_NOTICE))
+
+    def test_html_sidebar_links_and_scrollspy(self):
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        for marker in (
+            'id="trail-sidebar"',
+            'id="sidebar-toggle"',
+            'data-topic-link="controle"',
+            'data-topic-section="controle"',
+            "new IntersectionObserver",
+            "history.replaceState",
+            "@media (max-width: 800px)",
+            "@media print",
+        ):
+            self.assertIn(marker, document)
+
+        parser = FragmentLinkParser()
+        parser.feed(document)
+        self.assertEqual(len(parser.ids), len(set(parser.ids)), "IDs duplicados no HTML")
+        for fragment in parser.fragment_links:
+            self.assertEqual(
+                parser.ids.count(fragment), 1,
+                f"fragmento #{fragment} deve apontar para exatamente um id",
+            )
+        self.assertFalse(parser.javascript_links, "links javascript: ativos não são permitidos")
 
     @unittest.skipUnless(find_spec("scripts.trilha_outputs"), "output publisher not implemented yet")
     def test_publish_bundle_restores_every_prior_file_when_a_replace_fails(self):

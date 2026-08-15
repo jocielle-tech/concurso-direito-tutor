@@ -43,6 +43,7 @@ DIAGNOSIS_FIELDS = ("Acertos", "Padrões de erro", "Prioridade", "Próxima revis
 LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
 MIGRATION_REQUIRED_EXIT = 3
+URL_COMPONENT_SAFE = "-._~!~*'()"
 
 
 class ValidationError(ValueError):
@@ -338,7 +339,8 @@ def all_topics(manifest):
 
 def anchor_id(kind, item_id):
     """Return a stable fragment identifier while keeping arbitrary IDs safe in URLs."""
-    return f"{kind}-{quote(item_id, safe='-._~')}"
+    # Keep the encoded fragments aligned with JavaScript's encodeURIComponent().
+    return f"{kind}-{quote(item_id, safe=URL_COMPONENT_SAFE)}"
 
 
 def markdown_document(manifest, session_files):
@@ -459,8 +461,12 @@ def html_session(text, session_anchor):
 
 def html_document(manifest, session_files):
     overall = progress(all_topics(manifest))
-    index = "".join(
-        f'<li><a href="#{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</a><ul>' + "".join(
+    navigation_html = "".join(
+        f'<li><a class="module-label" href="#{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</a><ul>' + "".join(
+            f'<li><a href="#{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
+            f'data-topic-link="{html.escape(topic["id"], quote=True)}">{html.escape(topic["title"])}</a></li>'
+            for topic in module["topics"]
+        ) + "</ul><ul>" + "".join(
             f'<li><a href="#{html.escape(anchor_id("sessao", session["id"]), quote=True)}">{html.escape(session["title"])}</a> ({html.escape(session["date"])})</li>'
             for session in manifest["sessions"] if session["module_id"] == module["id"]
         ) + "</ul></li>"
@@ -474,12 +480,24 @@ def html_document(manifest, session_files):
         f'<li><span style="color:{color}">{label} ({color})</span></li>'
         for label, color in MAP_CATEGORIES.values()
     )
-    sessions = "\n".join(
+    content_html = "\n".join(
         f'<section aria-labelledby="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">'
         f'<h2 id="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</h2>'
         + "\n".join(
-            html_session(session_files[session["id"]], anchor_id("sessao", session["id"]))
-            for session in manifest["sessions"] if session["module_id"] == module["id"]
+            f'<section id="{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
+            f'data-topic-section="{html.escape(topic["id"], quote=True)}" '
+            f'aria-label="{html.escape(topic["title"], quote=True)}">'
+            f'<h3>{html.escape(topic["title"])}</h3>'
+            + "\n".join(
+                html_session(
+                    session_files[session["id"]],
+                    anchor_id("sessao", session["id"]),
+                )
+                for session in manifest["sessions"]
+                if session["module_id"] == module["id"] and session["topic_ids"][0] == topic["id"]
+            )
+            + "</section>"
+            for topic in module["topics"]
         )
         + "</section>"
         for module in manifest["modules"]
@@ -488,15 +506,56 @@ def html_document(manifest, session_files):
     return f'''<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>{html.escape(manifest['title'])}</title>
 <style>
-body {{ font-family: system-ui, sans-serif; color: #111827; max-width: 900px; margin: auto; line-height: 1.5; }}
+body {{ font-family: system-ui, sans-serif; color: #111827; margin: 0; line-height: 1.5; }}
+#trail-layout {{ display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+#trail-sidebar {{ position: sticky; top: 1rem; align-self: start; max-height: calc(100vh - 2rem); overflow: auto; padding: 1rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; }}
+#trail-sidebar ul {{ padding-left: 1rem; }} #trail-sidebar a {{ color: #1d4ed8; }}
+.module-label {{ display: block; font-weight: 700; margin-top: .5rem; }}
+[data-topic-link].is-active {{ color: #111827; font-weight: 700; }} [data-topic-link].is-active::after {{ content: " — tópico atual"; }}
+#sidebar-toggle {{ display: none; }}
+#trail-content {{ min-width: 0; }} [data-topic-section] {{ scroll-margin-top: 1rem; }}
+a:focus-visible, button:focus-visible {{ outline: 3px solid #f59e0b; outline-offset: 3px; }}
 .progress {{ height: 1rem; background: #e5e7eb; }} .progress > span {{ display: block; height: 100%; background: #2563EB; }}
 .map-item {{ border-left: .35rem solid; padding-left: .6rem; }}
-@media print {{ body {{ max-width: none; }} a {{ color: #000; text-decoration: none; }} }}
+@media (max-width: 800px) {{
+  #trail-layout {{ display: block; padding: 1rem; }} #sidebar-toggle {{ display: block; margin: 1rem; }}
+  #trail-sidebar {{ position: fixed; z-index: 1; inset: 0 auto 0 0; width: min(18rem, 85vw); max-height: none; border-radius: 0; transform: translateX(-105%); transition: transform .2s ease; }}
+  #trail-sidebar.is-open {{ transform: translateX(0); }}
+}}
+@media print {{ #trail-sidebar, #sidebar-toggle {{ display: none !important; }} #trail-layout {{ display: block; max-width: none; padding: 0; }} a {{ color: #000; text-decoration: none; }} }}
 </style></head><body>
-<h1>{html.escape(manifest['title'])}</h1>{recalibrated}
+<button id="sidebar-toggle" type="button" aria-controls="trail-sidebar" aria-expanded="false">Índice</button>
+<div id="trail-layout"><aside id="trail-sidebar" aria-label="Índice da apostila"><nav><h2>Índice</h2><ul>{navigation_html}</ul></nav></aside>
+<main id="trail-content"><h1>{html.escape(manifest['title'])}</h1>{recalibrated}
 <p>Progresso global: {overall}%</p><div class="progress" role="progressbar" aria-label="Progresso global" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{overall}"><span style="width:{overall}%"></span></div>
-<h2>Índice</h2><ul>{index}</ul><h2>Progresso por módulo</h2><ul>{module_progress}</ul>
-<h2>Legenda do mapa mental</h2><ul>{legend}</ul>{sessions}
+<h2>Progresso por módulo</h2><ul>{module_progress}</ul>
+<h2>Legenda do mapa mental</h2><ul>{legend}</ul>{content_html}</main></div>
+<script>
+const toggle = document.getElementById('sidebar-toggle');
+const sidebar = document.getElementById('trail-sidebar');
+toggle.addEventListener('click', () => {{
+  const open = sidebar.classList.toggle('is-open');
+  toggle.setAttribute('aria-expanded', String(open));
+}});
+const links = new Map([...document.querySelectorAll('[data-topic-link]')]
+  .map(link => [link.dataset.topicLink, link]));
+const sections = [...document.querySelectorAll('[data-topic-section]')];
+const activate = id => {{
+  links.forEach((link, key) => {{
+    const active = key === id;
+    link.classList.toggle('is-active', active);
+    if (active) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  }});
+  if (id) history.replaceState(null, '', `#topico-${{encodeURIComponent(id)}}`);
+}};
+const observer = new IntersectionObserver(entries => {{
+  const visible = entries.filter(entry => entry.isIntersecting)
+    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+  if (visible) activate(visible.target.dataset.topicSection);
+}}, {{rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.1, 0.5]}});
+sections.forEach(section => observer.observe(section));
+</script>
 </body></html>\n'''
 
 
