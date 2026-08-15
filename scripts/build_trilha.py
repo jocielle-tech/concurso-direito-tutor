@@ -12,6 +12,11 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
+try:
+    from scripts.trilha_outputs import build_output_bundle, publish_bundle
+except ModuleNotFoundError:  # Direct ``python scripts/build_trilha.py`` execution.
+    from trilha_outputs import build_output_bundle, publish_bundle
+
 
 SOURCES = {"provisional", "edital"}
 STATUSES = {"not_started", "in_progress", "completed"}
@@ -509,8 +514,11 @@ def main(argv=None):
         if not args.check:
             markdown = markdown_document(manifest, session_files)
             document = html_document(manifest, session_files)
-            atomic_write(trail / "apostila.md", markdown)
-            atomic_write(trail / "apostila.html", document)
+            outputs = build_output_bundle(trail, manifest, session_files, markdown, document)
+            # Keep the original two entry points during the staged layout transition.
+            outputs[Path("apostila.md")] = markdown.encode("utf-8")
+            outputs[Path("apostila.html")] = document.encode("utf-8")
+            publish_bundle(trail, outputs)
     except (ValidationError, OSError, UnicodeDecodeError) as exc:
         print(f"erro: {exc}", file=sys.stderr)
         return 1
