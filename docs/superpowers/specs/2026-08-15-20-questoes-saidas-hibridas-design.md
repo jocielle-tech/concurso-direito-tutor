@@ -129,9 +129,11 @@ Em uma trilha legada estruturalmente válida, `--check` retornará código 3 e a
 
 ## Atualização da skill e documentação
 
-- Atualizar `SKILL.md` e `references/trilha-e-apostila.md` com a sequência de 20 questões, espera pelas respostas, novo campo de tópico e nova árvore.
-- Atualizar `agents/openai.yaml` somente se o prompt público ficar incoerente.
-- Atualizar README, instalação da dependência e exemplos de uso.
+- Atualizar a descrição do frontmatter de `SKILL.md` com gatilhos de descoberta para 20 questões, organização de materiais, PDF e HTML interativo, sem resumir o fluxo completo no metadata.
+- Atualizar o corpo de `SKILL.md` e `references/trilha-e-apostila.md` com a sequência de 20 questões, espera pelas respostas, novo campo de tópico e nova árvore.
+- Atualizar `agents/openai.yaml` para apresentar as novas funcionalidades no `short_description` e no `default_prompt`.
+- Atualizar README com uma seção visível de novidades, estrutura de pastas, instalação das dependências de PDF e exemplos de uso.
+- Mostrar claramente ao usuário, no início ou retomada de uma trilha, que estão disponíveis 20 questões por sessão, materiais organizados, Markdown, HTML interativo e PDF.
 - Manter a orientação jurídica de fontes oficiais e feedback individual.
 
 ## Estratégia de testes
