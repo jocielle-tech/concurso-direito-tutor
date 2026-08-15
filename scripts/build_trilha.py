@@ -371,14 +371,15 @@ def markdown_document(manifest, session_files):
     return "\n".join(lines).rstrip() + "\n"
 
 
-def safe_inline(text):
+def safe_inline(text, local_fragments=()):
     parts = []
     position = 0
     for match in LINK.finditer(text):
         parts.append(html.escape(text[position:match.start()], quote=True))
         label, url = match.group(1), match.group(2).strip()
         scheme = urlparse(url).scheme.lower()
-        if scheme and scheme not in {"http", "https", "mailto"}:
+        if ((scheme and scheme not in {"http", "https", "mailto"})
+                or (url.startswith("#") and url[1:] not in local_fragments)):
             parts.append(html.escape(label, quote=True))
         else:
             parts.append(
@@ -390,7 +391,7 @@ def safe_inline(text):
     return "".join(parts)
 
 
-def html_map(lines):
+def html_map(lines, local_fragments=()):
     blocks = ['<ul class="mind-map">']
     current_level = 0
     for line in lines:
@@ -415,7 +416,7 @@ def html_map(lines):
             blocks.append("</li>")
         blocks.append(
             f'<li class="map-item map-level-{level}" style="border-color:{color}">'
-            f"<strong>{label}:</strong> {safe_inline(content)}"
+            f"<strong>{label}:</strong> {safe_inline(content, local_fragments)}"
         )
     while current_level > 1:
         blocks.append("</li></ul>")
@@ -426,16 +427,16 @@ def html_map(lines):
     return "\n".join(blocks)
 
 
-def html_session(text, session_anchor):
+def html_session(text, session_anchor, local_fragments):
     blocks = []
     lines = text.splitlines()
     index = 0
     while index < len(lines):
         line = lines[index]
         if line.startswith("# "):
-            blocks.append(f'<h3 id="{html.escape(session_anchor, quote=True)}">{safe_inline(line[2:])}</h3>')
+            blocks.append(f'<h3 id="{html.escape(session_anchor, quote=True)}">{safe_inline(line[2:], local_fragments)}</h3>')
         elif line.startswith("## "):
-            blocks.append(f"<h4>{safe_inline(line[3:])}</h4>")
+            blocks.append(f"<h4>{safe_inline(line[3:], local_fragments)}</h4>")
             if line[3:] == "Mapa mental":
                 index += 1
                 map_lines = []
@@ -444,23 +445,32 @@ def html_session(text, session_anchor):
                         map_lines.append(lines[index])
                     index += 1
                 if map_lines and map_validation_error(map_lines) is None:
-                    blocks.append(html_map(map_lines))
+                    blocks.append(html_map(map_lines, local_fragments))
                 else:
-                    blocks.extend(f"<p>{safe_inline(map_line.strip())}</p>" for map_line in map_lines)
+                    blocks.extend(
+                        f"<p>{safe_inline(map_line.strip(), local_fragments)}</p>"
+                        for map_line in map_lines
+                    )
                 continue
         elif line.startswith("### "):
-            blocks.append(f"<h5>{safe_inline(line[4:])}</h5>")
+            blocks.append(f"<h5>{safe_inline(line[4:], local_fragments)}</h5>")
         elif line.strip().startswith(("- ", "* ")):
             item = line.strip()[2:]
-            blocks.append(f"<p>• {safe_inline(item)}</p>")
+            blocks.append(f"<p>• {safe_inline(item, local_fragments)}</p>")
         elif line.strip():
-            blocks.append(f"<p>{safe_inline(line.strip())}</p>")
+            blocks.append(f"<p>{safe_inline(line.strip(), local_fragments)}</p>")
         index += 1
     return "\n".join(blocks)
 
 
 def html_document(manifest, session_files):
     overall = progress(all_topics(manifest))
+    local_fragments = {
+        *(anchor_id("modulo", module["id"]) for module in manifest["modules"]),
+        *(anchor_id("topico", topic["id"])
+          for module in manifest["modules"] for topic in module["topics"]),
+        *(anchor_id("sessao", session["id"]) for session in manifest["sessions"]),
+    }
     navigation_html = "".join(
         f'<li><a class="module-label" href="#{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</a><ul>' + "".join(
             f'<li><a href="#{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
@@ -492,6 +502,7 @@ def html_document(manifest, session_files):
                 html_session(
                     session_files[session["id"]],
                     anchor_id("sessao", session["id"]),
+                    local_fragments,
                 )
                 for session in manifest["sessions"]
                 if session["module_id"] == module["id"] and session["topic_ids"][0] == topic["id"]
@@ -533,10 +544,17 @@ a:focus-visible, button:focus-visible {{ outline: 3px solid #f59e0b; outline-off
 <script>
 const toggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('trail-sidebar');
-toggle.addEventListener('click', () => {{
-  const open = sidebar.classList.toggle('is-open');
-  toggle.setAttribute('aria-expanded', String(open));
-}});
+const mobileQuery = window.matchMedia('(max-width: 800px)');
+const setSidebarState = open => {{
+  const mobile = mobileQuery.matches;
+  sidebar.hidden = mobile && !open;
+  sidebar.inert = mobile && !open;
+  sidebar.classList.toggle('is-open', mobile && open);
+  toggle.setAttribute('aria-expanded', String(mobile && open));
+}};
+toggle.addEventListener('click', () => setSidebarState(sidebar.hidden));
+mobileQuery.addEventListener('change', () => setSidebarState(false));
+setSidebarState(false);
 const links = new Map([...document.querySelectorAll('[data-topic-link]')]
   .map(link => [link.dataset.topicLink, link]));
 const sections = [...document.querySelectorAll('[data-topic-section]')];

@@ -134,6 +134,45 @@ class HybridOutputTests(unittest.TestCase):
             )
         self.assertFalse(parser.javascript_links, "links javascript: ativos não são permitidos")
 
+    def test_html_deactivates_unknown_session_fragment_links(self):
+        session_path = self.trail / (
+            "modulos/01-direito-constitucional/topicos/01-controle-difuso/"
+            "sessoes/001-controle-difuso.md"
+        )
+        session_path.write_text(
+            valid_session("Controle difuso").replace(
+                "Texto de estudo.",
+                "Texto de estudo. [conhecido](#topico-controle) [ver](#inexistente)",
+            ),
+            encoding="utf-8",
+        )
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        parser = FragmentLinkParser()
+        parser.feed(document)
+        self.assertIn('<a href="#topico-controle">conhecido</a>', document)
+        self.assertIn('<a href="#topico-controle">conhecido</a> ver', document)
+        self.assertNotIn("inexistente", parser.fragment_links)
+        for fragment in parser.fragment_links:
+            self.assertEqual(parser.ids.count(fragment), 1)
+
+    def test_mobile_closed_sidebar_is_hidden_and_inert(self):
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        for behavior in (
+            "window.matchMedia('(max-width: 800px)')",
+            "sidebar.hidden = mobile && !open;",
+            "sidebar.inert = mobile && !open;",
+            "mobileQuery.addEventListener('change', () => setSidebarState(false));",
+            "setSidebarState(false);",
+        ):
+            self.assertIn(behavior, document)
+
     @unittest.skipUnless(find_spec("scripts.trilha_outputs"), "output publisher not implemented yet")
     def test_publish_bundle_restores_every_prior_file_when_a_replace_fails(self):
         from scripts.trilha_outputs import publish_bundle
