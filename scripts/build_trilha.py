@@ -108,7 +108,11 @@ def parse_question_feedback(text):
         block = text[heading.end():end]
         question = re.fullmatch(r"Questão\s+(\d+)", heading.group(1))
         if question:
-            questions.append(QuestionFeedback(int(question.group(1)), field_value(block, "Tópico"), block))
+            try:
+                number = int(question.group(1))
+            except ValueError as exc:
+                raise ValidationError("número de questão inválido") from exc
+            questions.append(QuestionFeedback(number, field_value(block, "Tópico"), block))
         elif heading.group(1) == "Diagnóstico agregado":
             diagnosis = block
     return questions, diagnosis

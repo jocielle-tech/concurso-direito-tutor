@@ -221,6 +221,23 @@ class BuildTrilhaTests(unittest.TestCase):
                 self.assertEqual((self.trail / "apostila.md").read_bytes(), before_md)
                 self.assertEqual((self.trail / "apostila.html").read_bytes(), before_html)
 
+    def test_oversized_question_number_reports_validation_error_without_traceback(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["sessions"][0]["question_target"] = 20
+        self.write_manifest(manifest)
+        oversized_number = "9" * 5_000
+        self.write_session(
+            "001.md",
+            valid_session("Controle difuso").replace("### Questão 1", f"### Questão {oversized_number}"),
+        )
+
+        result = self.run_build("--check")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("número de questão inválido", result.stderr)
+
     def test_build_creates_accessible_index_legend_and_printable_outputs(self):
         self.write_valid_trail()
 
