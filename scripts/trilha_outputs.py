@@ -1,5 +1,6 @@
 """Build and publish the generated study-material tree."""
 
+import os
 import re
 import tempfile
 import unicodedata
@@ -74,11 +75,27 @@ def _topic_relative_path(module_index, module, topic_index, topic):
     )
 
 
-def _topic_link(canonical_path):
-    return (
-        "[Abrir sessão canônica]"
-        f"(../{canonical_path.parent.parent.name}/sessoes/{canonical_path.name})"
-    )
+def _canonical_links_section(links, output_path):
+    lines = []
+    for title, canonical_path in links:
+        relative = Path(os.path.relpath(canonical_path, start=output_path.parent)).as_posix()
+        lines.append(f"- {title}: [Abrir sessão canônica]({relative})")
+    return "## Sessões canônicas relacionadas\n\n" + "\n".join(lines)
+
+
+def _progress(topics):
+    total = sum(topic["weight"] for topic in topics)
+    completed = sum(topic["weight"] for topic in topics if topic["status"] == "completed")
+    return round(completed * 100 / total) if total else 0
+
+
+def _review_details(session, text):
+    if session["status"] != "completed":
+        return "não definida", session["status"]
+    sections = _sections(text)
+    review = " ".join(sections.get("Próxima revisão", "").split()) or "não definida"
+    match = re.search(r"^\s*[-*]\s+Prioridade:\s*(\S.*?)\s*$", text, re.MULTILINE)
+    return review, match.group(1) if match else "não definida"
 
 
 def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_html, apostila_pdf=None):
@@ -91,12 +108,17 @@ def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_ht
     if apostila_pdf is not None:
         outputs[Path("apostila/apostila.pdf")] = apostila_pdf
 
-    panel_index, panel_progress, review_agenda = [], [], []
+    panel_index, panel_progress = [], []
     all_summaries, all_maps, all_questions = [], [], []
     for module_index, module in enumerate(manifest["modules"], 1):
-        panel_progress.append(f"- {module['title']}")
+        module_root = Path("modulos") / ordered_segment(module_index, module["title"])
+        panel_index.extend([
+            f"## [{module['title']}](../{module_root.as_posix()}/)",
+            "",
+        ])
         for topic_index, topic in enumerate(module["topics"], 1):
             topic_root = _topic_relative_path(module_index, module, topic_index, topic)
+            panel_index.append(f"- [{topic['title']}](../{(topic_root / 'resumo.md').as_posix()})")
             linked_sessions = [
                 session for session in manifest["sessions"]
                 if session["module_id"] == module["id"] and topic["id"] in session["topic_ids"]
@@ -106,7 +128,7 @@ def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_ht
                 canonical = canonical_session_relative_path(manifest, session)
                 panel_index.append(f"- {module['title']} / {topic['title']}: [{session['title']}](../{canonical})")
                 if session["topic_ids"][0] != topic["id"]:
-                    canonical_links.append(f"- {session['title']}: {_topic_link(canonical)}")
+                    canonical_links.append((session["title"], canonical))
                 else:
                     outputs[canonical] = session_files[session["id"]].encode("utf-8")
                 sections = _sections(session_files[session["id"]])
@@ -115,24 +137,50 @@ def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_ht
                 blocks = _question_blocks(sections.get("Questões e feedback", ""), topic["id"])
                 if blocks:
                     questions.append(f"## {session['title']}\n\n" + "\n\n".join(blocks))
-                review_agenda.append(f"- {session['date']}: {session['title']} ({topic['title']})")
+            material_summaries = list(summaries)
+            material_maps = list(maps)
+            material_questions = list(questions)
             if canonical_links:
-                link_section = "## Sessões canônicas relacionadas\n\n" + "\n".join(canonical_links)
-                summaries.append(link_section)
-                maps.append(link_section)
-                questions.append(link_section)
+                summaries.append(_canonical_links_section(canonical_links, topic_root / "resumo.md"))
+                maps.append(_canonical_links_section(canonical_links, topic_root / "mapa-mental.md"))
+                questions.append(_canonical_links_section(canonical_links, topic_root / "questoes.md"))
             outputs[topic_root / "resumo.md"] = _generated(f"Resumo — {topic['title']}", summaries).encode("utf-8")
             outputs[topic_root / "mapa-mental.md"] = _generated(f"Mapa mental — {topic['title']}", maps).encode("utf-8")
             outputs[topic_root / "questoes.md"] = _generated(f"Questões — {topic['title']}", questions).encode("utf-8")
-            all_summaries.extend(summaries)
-            all_maps.extend(maps)
-            all_questions.extend(questions)
+            all_summaries.extend(material_summaries)
+            all_maps.extend(material_maps)
+            all_questions.extend(material_questions)
+            if canonical_links:
+                all_summaries.append(_canonical_links_section(canonical_links, Path("materiais/resumos.md")))
+                all_maps.append(_canonical_links_section(canonical_links, Path("materiais/mapas-mentais.md")))
+                all_questions.append(_canonical_links_section(canonical_links, Path("materiais/caderno-de-questoes.md")))
+
+    panel_index.extend([
+        "", "## Materiais consolidados", "",
+        "- [Resumos](../materiais/resumos.md)",
+        "- [Mapas mentais](../materiais/mapas-mentais.md)",
+        "- [Caderno de questões](../materiais/caderno-de-questoes.md)",
+    ])
+    topics = [topic for module in manifest["modules"] for topic in module["topics"]]
+    panel_progress.extend([f"Progresso global: {_progress(topics)}%", "", "## Por módulo", ""])
+    panel_progress.extend(f"- {module['title']}: {_progress(module['topics'])}%" for module in manifest["modules"])
+    panel_progress.extend(["", "## Por tópico", ""])
+    panel_progress.extend(
+        f"- {module['title']} / {topic['title']}: {_progress([topic])}%"
+        for module in manifest["modules"] for topic in module["topics"]
+    )
+    review_agenda = []
+    for session in manifest["sessions"]:
+        review, priority = _review_details(session, session_files[session["id"]])
+        review_agenda.append(
+            f"- {session['title']} — Próxima revisão: {review}; Prioridade: {priority}."
+        )
 
     outputs.update({
         Path("painel/indice.md"): _generated("Índice da trilha", panel_index).encode("utf-8"),
         Path("painel/progresso.md"): _generated("Progresso", panel_progress).encode("utf-8"),
-        Path("painel/agenda-de-revisoes.md"): _generated("Agenda de revisões", sorted(review_agenda)).encode("utf-8"),
-        Path("revisoes/agenda.md"): _generated("Agenda de revisões", sorted(review_agenda)).encode("utf-8"),
+        Path("painel/agenda-de-revisoes.md"): _generated("Agenda de revisões", review_agenda).encode("utf-8"),
+        Path("revisoes/agenda.md"): _generated("Agenda de revisões", review_agenda).encode("utf-8"),
         Path("materiais/resumos.md"): _generated("Resumos", all_summaries).encode("utf-8"),
         Path("materiais/mapas-mentais.md"): _generated("Mapas mentais", all_maps).encode("utf-8"),
         Path("materiais/caderno-de-questoes.md"): _generated("Caderno de questões", all_questions).encode("utf-8"),

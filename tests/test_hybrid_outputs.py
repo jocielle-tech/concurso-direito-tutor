@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -149,6 +150,43 @@ class HybridOutputTests(unittest.TestCase):
         self.assertIn("### Questão 2", questions)
         self.assertNotRegex(questions, r"(?m)^### Questão 1$")
         self.assertNotIn("### Diagnóstico agregado", questions)
+        self.assert_every_local_link_resolves()
+
+    def test_panels_link_the_tree_and_agendas_use_review_details_not_session_dates(self):
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        index = (self.trail / "painel/indice.md").read_text(encoding="utf-8")
+        progress = (self.trail / "painel/progresso.md").read_text(encoding="utf-8")
+        for label, relative in {
+            "Direito Constitucional": "../modulos/01-direito-constitucional/",
+            "Controle difuso": "../modulos/01-direito-constitucional/topicos/01-controle-difuso/resumo.md",
+            "Resumos": "../materiais/resumos.md",
+            "Mapas mentais": "../materiais/mapas-mentais.md",
+            "Caderno de questões": "../materiais/caderno-de-questoes.md",
+        }.items():
+            self.assertIn(f"[{label}]({relative})", index)
+        self.assertIn("Progresso global: 100%", progress)
+        self.assertIn("Direito Constitucional: 100%", progress)
+        self.assertIn("Direito Constitucional / Controle difuso: 100%", progress)
+        for relative in ("painel/agenda-de-revisoes.md", "revisoes/agenda.md"):
+            agenda = (self.trail / relative).read_text(encoding="utf-8")
+            self.assertIn("Controle difuso", agenda)
+            self.assertIn("Próxima revisão: Em sete dias.", agenda)
+            self.assertIn("Prioridade: consolidar competência.", agenda)
+            self.assertNotIn("2026-08-10", agenda)
+        self.assert_every_local_link_resolves()
+
+    def assert_every_local_link_resolves(self):
+        for source in self.trail.rglob("*.md"):
+            for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", source.read_text(encoding="utf-8")):
+                if target.startswith("#") or ":" in target:
+                    continue
+                resolved = (source.parent / target).resolve()
+                self.assertTrue(
+                    resolved.exists(),
+                    f"{source.relative_to(self.trail)} links to missing {target}",
+                )
 
 
 if __name__ == "__main__":
