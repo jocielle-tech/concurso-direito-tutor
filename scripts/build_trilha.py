@@ -7,6 +7,7 @@ import json
 import re
 import sys
 import tempfile
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -29,6 +30,7 @@ QUESTION_FIELDS = (
     "Resposta", "Resultado", "Fundamento", "Alternativas úteis", "Tipo de erro",
     "Prevenção", "Fonte", "Revisão",
 )
+TARGETED_QUESTION_FIELDS = QUESTION_FIELDS + ("Tópico",)
 DIAGNOSIS_FIELDS = ("Acertos", "Padrões de erro", "Prioridade", "Próxima revisão")
 LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
@@ -36,6 +38,13 @@ MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
 
 class ValidationError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class QuestionFeedback:
+    number: int
+    topic_id: str | None
+    block: str
 
 
 def reject_nonfinite_json(_value):
@@ -86,6 +95,25 @@ def missing_feedback_fields(block, fields):
     ]
 
 
+def field_value(block, field):
+    match = re.search(rf"^\s*[-*]\s+{re.escape(field)}:\s*(\S.*?)\s*$", block, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def parse_question_feedback(text):
+    headings = list(re.finditer(r"^###\s+(.+?)\s*$", text, re.MULTILINE))
+    questions, diagnosis = [], ""
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        block = text[heading.end():end]
+        question = re.fullmatch(r"Questão\s+(\d+)", heading.group(1))
+        if question:
+            questions.append(QuestionFeedback(int(question.group(1)), field_value(block, "Tópico"), block))
+        elif heading.group(1) == "Diagnóstico agregado":
+            diagnosis = block
+    return questions, diagnosis
+
+
 def validate_question_feedback(text, session_id):
     headings = list(re.finditer(r"^###\s+(.+?)\s*$", text, re.MULTILINE))
     questions = [
@@ -114,6 +142,32 @@ def validate_question_feedback(text, session_id):
         raise ValidationError(
             f"sessão '{session_id}': diagnóstico sem campos obrigatórios: {', '.join(missing)}"
         )
+
+
+def validate_targeted_question_feedback(text, session):
+    session_id = session["id"]
+    questions, diagnosis = parse_question_feedback(text)
+    if len(questions) != 20:
+        raise ValidationError(f"sessão '{session_id}': exige exatamente 20 questões")
+    numbers = [question.number for question in questions]
+    if numbers != list(range(1, 21)):
+        raise ValidationError(
+            f"sessão '{session_id}': questões devem ser numeradas de 1 a 20, sem duplicidades ou lacunas"
+        )
+    for question in questions:
+        missing = missing_feedback_fields(question.block, TARGETED_QUESTION_FIELDS)
+        if missing:
+            raise ValidationError(
+                f"sessão '{session_id}': questão sem campos obrigatórios: {', '.join(missing)}"
+            )
+        if question.topic_id not in session["topic_ids"]:
+            raise ValidationError(f"sessão '{session_id}': tópico inválido: {question.topic_id}")
+    covered_topics = {question.topic_id for question in questions}
+    for topic_id in session["topic_ids"]:
+        if topic_id not in covered_topics:
+            raise ValidationError(f"sessão '{session_id}': tópico sem questão: {topic_id}")
+    if not diagnosis:
+        raise ValidationError(f"sessão '{session_id}': diagnóstico agregado obrigatório ausente")
 
 
 def map_validation_error(map_lines):
@@ -152,6 +206,8 @@ def validate_completed_session(text, session):
     if map_error:
         raise ValidationError(f"sessão '{session['id']}': {map_error}")
     validate_question_feedback(sections["Questões e feedback"], session["id"])
+    if session.get("question_target") is not None:
+        validate_targeted_question_feedback(sections["Questões e feedback"], session)
 
 
 def inside_trail(trail, relative_path):
@@ -234,6 +290,9 @@ def load_and_validate(trail):
                 or not isinstance(session["module_id"], str) or session["module_id"] not in module_ids
                 or not isinstance(session["topic_ids"], list)):
             raise ValidationError("sessão inválida")
+        target = session.get("question_target")
+        if target is not None and (type(target) is not int or target != 20):
+            raise ValidationError(f"sessão '{session['id']}': question_target deve ser o inteiro 20")
         if (not session["topic_ids"]
                 or any(not isinstance(item, str) or not item for item in session["topic_ids"])
                 or len(session["topic_ids"]) != len(set(session["topic_ids"]))):

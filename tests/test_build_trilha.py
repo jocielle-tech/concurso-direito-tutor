@@ -5,6 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import scripts.build_trilha as build_trilha
+from tests.trilha_support import feedback_section
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "build_trilha.py"
@@ -152,6 +155,72 @@ class BuildTrilhaTests(unittest.TestCase):
         self.assertEqual((self.trail / "apostila.md").read_bytes(), before_md)
         self.assertEqual((self.trail / "apostila.html").read_bytes(), before_html)
 
+    def test_targeted_completed_session_requires_exactly_twenty_questions(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["sessions"][0]["question_target"] = 20
+        self.write_manifest(manifest)
+        self.write_session("001.md", valid_session("Controle difuso", question_count=19))
+        result = self.run_build("--check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("exatamente 20 questões", result.stderr)
+
+    def test_targeted_questions_cover_every_session_topic(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        session = manifest["sessions"][0]
+        session.update(question_target=20, topic_ids=["controle", "direitos"])
+        manifest["modules"][0]["topics"][1]["sessions"].append("s001")
+        self.write_manifest(manifest)
+        self.write_session("001.md", valid_session("Controle difuso", topic_ids=("controle",)))
+        result = self.run_build("--check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tópico sem questão: direitos", result.stderr)
+
+    def test_legacy_completed_session_without_question_target_remains_valid(self):
+        self.write_valid_trail()
+        self.write_session("001.md", valid_session("Controle difuso", question_count=19))
+        result = self.run_build("--check")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_question_feedback_parser_returns_questions_and_diagnosis(self):
+        questions, diagnosis = build_trilha.parse_question_feedback(feedback_section(2, ("controle", "direitos")))
+        self.assertEqual([(question.number, question.topic_id) for question in questions], [
+            (1, "controle"), (2, "direitos"),
+        ])
+        self.assertIn("Acertos: 20/20", diagnosis)
+
+    def test_invalid_targeted_question_inputs_preserve_outputs_without_traceback(self):
+        cases = {
+            "duplicate_question": lambda manifest, text: text.replace("### Questão 8", "### Questão 7"),
+            "skipped_question": lambda manifest, text: text.replace("### Questão 11", "### Questão 12"),
+            "invalid_topic": lambda manifest, text: text.replace("- Tópico: controle", "- Tópico: inexistente", 1),
+            "non_integer_target": lambda manifest, text: manifest["sessions"][0].update(question_target="20"),
+            "wrong_target": lambda manifest, text: manifest["sessions"][0].update(question_target=19),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name):
+                self.write_valid_trail()
+                manifest = self.valid_manifest()
+                manifest["sessions"][0]["question_target"] = 20
+                text = valid_session("Controle difuso")
+                mutation = mutate(manifest, text)
+                if isinstance(mutation, str):
+                    text = mutation
+                self.write_manifest(manifest)
+                self.write_session("001.md", text)
+                before_md = b"previous markdown"
+                before_html = b"previous html"
+                (self.trail / "apostila.md").write_bytes(before_md)
+                (self.trail / "apostila.html").write_bytes(before_html)
+
+                result = self.run_build()
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual((self.trail / "apostila.md").read_bytes(), before_md)
+                self.assertEqual((self.trail / "apostila.html").read_bytes(), before_html)
+
     def test_build_creates_accessible_index_legend_and_printable_outputs(self):
         self.write_valid_trail()
 
@@ -243,19 +312,14 @@ class BuildTrilhaTests(unittest.TestCase):
                         "  - [regra] Aplicação\n    - [excecao] Limite", "    - [excecao] Limite"
                     ))
                 elif name == "missing_question_feedback":
-                    self.write_session("001.md", valid_session("Controle difuso").replace(
-                        "### Questão 1\n- Resposta: alternativa A\n- Resultado: correta; gabarito A\n"
-                        "- Fundamento: Constituição Federal.\n- Alternativas úteis: B ignora a competência.\n"
-                        "- Tipo de erro: nenhum\n- Prevenção: manter a revisão.\n"
-                        "- Fonte: Constituição Federal.\n- Revisão: em sete dias.\n\n", ""
-                    ))
+                    self.write_session("001.md", valid_session("Controle difuso", question_count=0))
                 elif name == "incomplete_question_feedback":
                     self.write_session("001.md", valid_session("Controle difuso").replace(
                         "- Prevenção: manter a revisão.\n", ""
                     ))
                 elif name == "missing_aggregate_diagnosis":
                     self.write_session("001.md", valid_session("Controle difuso").replace(
-                        "### Diagnóstico agregado\n- Acertos: 1/1 (100%).\n- Padrões de erro: nenhum.\n"
+                        "### Diagnóstico agregado\n- Acertos: 20/20 (100%).\n- Padrões de erro: nenhum.\n"
                         "- Prioridade: consolidar competência.\n- Próxima revisão: em sete dias.\n\n", ""
                     ))
                 else:
@@ -374,7 +438,7 @@ def set_value(value, path, replacement):
     value[path[-1]] = replacement
 
 
-def valid_session(title):
+def valid_session(title, question_count=20, topic_ids=("controle",)):
     return f"""# {title}
 
 ## Conteúdo principal
@@ -399,21 +463,7 @@ Texto de estudo.
 
 ## Questões e feedback
 
-### Questão 1
-- Resposta: alternativa A
-- Resultado: correta; gabarito A
-- Fundamento: Constituição Federal.
-- Alternativas úteis: B ignora a competência.
-- Tipo de erro: nenhum
-- Prevenção: manter a revisão.
-- Fonte: Constituição Federal.
-- Revisão: em sete dias.
-
-### Diagnóstico agregado
-- Acertos: 1/1 (100%).
-- Padrões de erro: nenhum.
-- Prioridade: consolidar competência.
-- Próxima revisão: em sete dias.
+{feedback_section(question_count, topic_ids)}
 
 ## Fontes
 
