@@ -299,6 +299,7 @@ def load_and_validate(trail):
 
     session_ids = unique_ids(manifest["sessions"], "sessões")
     session_files = {}
+    session_paths = set()
     for session in manifest["sessions"]:
         require_keys(session, ("id", "title", "date", "status", "module_id", "topic_ids", "file"), "sessão")
         if (not isinstance(session["title"], str) or not isinstance(session["date"], str)
@@ -319,6 +320,9 @@ def load_and_validate(trail):
             if session["id"] not in topic_sessions[topic_id]:
                 raise ValidationError("referência de sessão ausente no tópico")
         path = inside_trail(trail, session["file"])
+        if path in session_paths:
+            raise ValidationError("caminhos de sessões duplicados")
+        session_paths.add(path)
         text = path.read_text(encoding="utf-8")
         if session["status"] == "completed":
             validate_completed_session(text, session)

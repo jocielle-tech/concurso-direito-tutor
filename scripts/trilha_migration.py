@@ -229,15 +229,44 @@ def migrate_legacy_trail(trail, build_staged, canonical_path, now):
         manifest_text = manifest_path.read_text(encoding="utf-8")
         manifest = json.loads(manifest_text)
         backup = stage / "backups" / backup_name
+
+        sources = [
+            _contained_file(stage, Path(session["file"])) for session in manifest["sessions"]
+        ]
+        canonical_owners = {}
+        for session, source in zip(manifest["sessions"], sources):
+            if Path(session["file"]).parts[:1] != ("sessoes",):
+                if source in canonical_owners:
+                    raise OSError("caminhos de sessões duplicados")
+                canonical_owners[source] = session["id"]
+
+        migration_plans, planned_destinations = [], {}
+        for session, source in zip(manifest["sessions"], sources):
+            old_relative = Path(session["file"])
+            if old_relative.parts[:1] != ("sessoes",):
+                migration_plans.append(None)
+                continue
+            new_relative = Path(canonical_path(manifest, session))
+            destination = _contained_destination(stage, new_relative)
+            if destination in canonical_owners:
+                raise OSError(
+                    f"destino de migração já pertence a outra sessão: {new_relative.as_posix()}"
+                )
+            if destination in planned_destinations:
+                raise OSError(
+                    f"destino de migração duplicado: {new_relative.as_posix()}"
+                )
+            if destination.exists() and destination != source:
+                raise OSError(f"destino de migração já existe: {new_relative.as_posix()}")
+            planned_destinations[destination] = session["id"]
+            migration_plans.append((old_relative, source, new_relative, destination))
+
         _archive_original(trail, backup)
 
         legacy_paths, canonical_files = [], []
-        for session in manifest["sessions"]:
-            old_relative = Path(session["file"])
-            source = _contained_file(stage, old_relative)
-            if old_relative.parts[:1] == ("sessoes",):
-                new_relative = Path(canonical_path(manifest, session))
-                destination = _contained_destination(stage, new_relative)
+        for session, plan in zip(manifest["sessions"], migration_plans):
+            if plan is not None:
+                old_relative, source, new_relative, destination = plan
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 if source != destination:
                     shutil.copyfile(source, destination)

@@ -93,6 +93,20 @@ class MigrationTests(unittest.TestCase):
         (self.trail / "sessoes/002.md").replace(stable_source)
         return stable_path
 
+    def write_destination_collision_trail(self):
+        self.write_legacy_trail()
+        manifest_path = self.trail / "trilha.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        destination = migration_session_relative_path(manifest, manifest["sessions"][0]).as_posix()
+        manifest["sessions"][1]["file"] = destination
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        existing_source = self.trail / destination
+        existing_source.parent.mkdir(parents=True)
+        (self.trail / "sessoes/002.md").replace(existing_source)
+        return destination
+
     def test_check_reports_migration_required_without_writes(self):
         self.write_legacy_trail()
         before = snapshot_tree(self.trail)
@@ -217,6 +231,18 @@ class MigrationTests(unittest.TestCase):
         second = self.run_build("--migrate")
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(snapshot_tree(self.trail), before_second_run)
+
+    def test_migration_rejects_destination_owned_by_canonical_session_without_writes(self):
+        destination = self.write_destination_collision_trail()
+        before = snapshot_tree(self.trail)
+
+        result = self.run_build("--migrate")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"destino de migração já pertence a outra sessão: {destination}", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(snapshot_tree(self.trail), before)
+        self.assertFalse(list(self.trail.parent.glob(".trilha.migration-*")))
 
     def test_preexisting_swap_path_is_rejected_without_overwriting_it(self):
         from scripts.trilha_migration import migrate_legacy_trail, swap_path_for

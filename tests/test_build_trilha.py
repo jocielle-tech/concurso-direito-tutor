@@ -162,6 +162,24 @@ class BuildTrilhaTests(unittest.TestCase):
         self.assertEqual((self.trail / "apostila/apostila.md").read_bytes(), before_md)
         self.assertEqual((self.trail / "apostila/apostila.html").read_bytes(), before_html)
 
+    def test_duplicate_session_file_paths_are_rejected_before_outputs(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["sessions"][1]["file"] = manifest["sessions"][0]["file"]
+        self.write_manifest(manifest)
+        before_md = b"previous markdown"
+        before_html = b"previous html"
+        (self.trail / "apostila/apostila.md").write_bytes(before_md)
+        (self.trail / "apostila/apostila.html").write_bytes(before_html)
+
+        result = self.run_build()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("caminhos de sessões duplicados", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual((self.trail / "apostila/apostila.md").read_bytes(), before_md)
+        self.assertEqual((self.trail / "apostila/apostila.html").read_bytes(), before_html)
+
     def test_targeted_completed_session_requires_exactly_twenty_questions(self):
         self.write_valid_trail()
         manifest = self.valid_manifest()
