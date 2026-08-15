@@ -1,4 +1,4 @@
 interface:
   display_name: "Tutor de Concursos de Direito"
-  short_description: "Tutoria jurídica para concursos brasileiros"
-  default_prompt: "Use $concurso-direito-tutor para iniciar uma trilha de Direito com progresso, mapas mentais e apostila."
+  short_description: "20 questões, trilha organizada e apostila em Markdown, HTML e PDF"
+  default_prompt: "Use $concurso-direito-tutor para iniciar uma trilha jurídica com 20 questões por sessão, materiais organizados, progresso e apostila interativa em Markdown, HTML e PDF."

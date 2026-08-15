@@ -1,12 +1,24 @@
-# Trilha, sessões e apostila
+# Trilha, sessão de 20 questões e apostila
 
-## Criar ou retomar
+## Criar, retomar e migrar
 
-1. Criar automaticamente `estudos/<slug>/`, com `trilha.json` schema v1 e `sessoes/`, ao iniciar uma trilha persistente. Usar slug estável, minúsculo e separado por hífens.
-2. Antes de retomar ou considerar arquivos existentes válidos, executar `python3 <skill-dir>/scripts/build_trilha.py --check <trail_dir>` e ler `trilha.json`. Corrigir a trilha somente após entender manifesto, módulos, tópicos, sessões e estados.
-3. Sem edital, criar `source: "provisional"` e pesos por relevância geral. Quando chegar o edital, recalibrar para `source: "edital"`, ajustar módulos, tópicos e pesos, definir `recalibrated: true` e preservar sessões, arquivos e seus estados já registrados.
+Criar `estudos/<slug>/` com `trilha.json` schema v1. Usar IDs únicos, pesos positivos, `source` `provisional` ou `edital`, estados `not_started`, `in_progress` e `completed`, e vínculos nos dois sentidos entre sessão, módulo e tópico.
 
-Criar o manifesto mínimo abaixo e criar também o arquivo indicado em `file`; ele é válido para uma sessão ainda não iniciada:
+Para retomar, executar primeiro:
+
+```bash
+python3 <skill-dir>/scripts/build_trilha.py --check <trail_dir>
+```
+
+Se stderr for exatamente `MIGRATION_REQUIRED`, explicar que a trilha antiga será reorganizada com backup e executar:
+
+```bash
+python3 <skill-dir>/scripts/build_trilha.py --migrate <trail_dir>
+```
+
+Só continuar após a migração terminar. Ela preserva IDs, estados e conteúdo, cria ZIP em `backups/` e é idempotente. Qualquer outro erro de `--check` exige correção antes de escrever arquivos.
+
+Use, para sessão nova, um manifesto com `question_target: 20` e caminho canônico:
 
 ```json
 {
@@ -17,42 +29,42 @@ Criar o manifesto mínimo abaixo e criar também o arquivo indicado em `file`; e
   "exam": null,
   "banca": null,
   "recalibrated": false,
-  "modules": [
-    {
-      "id": "constitucional",
-      "title": "Direito Constitucional",
-      "topics": [
-        {
-          "id": "controle-difuso",
-          "title": "Controle difuso",
-          "weight": 1,
-          "status": "not_started",
-          "sessions": ["s001"]
-        }
-      ]
-    }
-  ],
-  "sessions": [
-    {
-      "id": "s001",
+  "modules": [{
+    "id": "constitucional",
+    "title": "Direito Constitucional",
+    "topics": [{
+      "id": "controle-difuso",
       "title": "Controle difuso",
-      "date": "2026-08-10",
+      "weight": 1,
       "status": "not_started",
-      "module_id": "constitucional",
-      "topic_ids": ["controle-difuso"],
-      "file": "sessoes/001-controle-difuso.md"
-    }
-  ]
+      "sessions": ["s001"]
+    }]
+  }],
+  "sessions": [{
+    "id": "s001",
+    "title": "Controle difuso",
+    "date": "<AAAA-MM-DD>",
+    "status": "not_started",
+    "module_id": "constitucional",
+    "topic_ids": ["controle-difuso"],
+    "question_target": 20,
+    "file": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md"
+  }]
 }
 ```
 
-Manter IDs de módulos, tópicos e sessões únicos. Usar somente estados `not_started`, `in_progress` e `completed`, pesos numéricos positivos e `source` `provisional` ou `edital`. Manter referências nos dois sentidos: cada `session.module_id` deve existir; cada item de `session.topic_ids` deve pertencer a esse módulo e listar o ID da sessão em `topic.sessions`; e cada ID em `topic.sessions` deve existir em `sessions`. Manter `file` relativo, contido na trilha e existente.
+Sessões legadas sem `question_target` continuam legíveis; não adicionar o campo retroativamente fora da migração. Sem edital, usar `source: "provisional"`; quando ele chegar, recalibrar módulos e pesos sem apagar sessões ou estados.
 
-## Sessão principal
+## Contrato da sessão principal
 
-Tratar pergunta pontual como dúvida rápida: responder no chat sem criar arquivo, sessão ou progresso. Tratar bloco de estudo como sessão principal. Somente ao seu fechamento marcar sessão e tópicos como `completed`; sessões `not_started` ou `in_progress` não elevam progresso.
+1. Anunciar as 20 questões, os materiais organizados, o progresso e as três apostilas: Markdown, HTML interativo e PDF.
+2. Definir ou criar uma sessão com `question_target: 20`, abrangendo cada ID em `topic_ids` ao menos uma vez.
+3. Ensinar o núcleo e apresentar exatamente as **20 questões, de 1 a 20, em uma única prática**, sem gabarito, justificativa de alternativa ou correção intermediária.
+4. Esperar as 20 respostas. Se faltarem itens, informar apenas os números pendentes e esperar. Não encerrar nem publicar diagnóstico antecipado.
+5. Se o aluno abandonar explicitamente o restante, corrigir somente as respostas recebidas, registrar a sessão como `in_progress`, não concluir tópicos e não aumentar o progresso. A sessão só vira `completed` com as 20 respostas.
+6. Depois das 20 respostas, registrar feedbacks sequenciais de 1 a 20, um diagnóstico agregado posterior e a próxima revisão; então reconstruir todas as saídas.
 
-Para cada sessão concluída, criar/atualizar uma única entrada em `sessions`, vinculá-la aos tópicos correspondentes e usar exatamente este formato:
+Para sessão concluída, usar o formato abaixo. Todo `Tópico` deve ser um ID de `session.topic_ids`; cada tópico da sessão precisa aparecer em pelo menos uma questão.
 
 ```markdown
 # <sessions[].title>
@@ -61,11 +73,7 @@ Para cada sessão concluída, criar/atualizar uma única entrada em `sessions`, 
 <explicação, lei seca, exemplos e pegadinhas>
 
 ## Resumo estratégico
-- <item 1>
-- <item 2>
-- <item 3>
-- <item 4>
-- <item 5>
+- <5 a 8 itens>
 
 ## Mapa mental
 - [conceito] <ideia central>
@@ -76,6 +84,7 @@ Para cada sessão concluída, criar/atualizar uma única entrada em `sessions`, 
 
 ## Questões e feedback
 ### Questão 1
+- Tópico: <topic_id>
 - Resposta: <resposta do aluno>
 - Resultado: <correta/incorreta e gabarito>
 - Fundamento: <regra, dispositivo ou precedente>
@@ -85,15 +94,7 @@ Para cada sessão concluída, criar/atualizar uma única entrada em `sessions`, 
 - Fonte: <link oficial>
 - Revisão: <data ou intervalo>
 
-### Questão N
-- Resposta: <resposta do aluno>
-- Resultado: <correta/incorreta e gabarito>
-- Fundamento: <regra, dispositivo ou precedente>
-- Alternativas úteis: <por que as opções relevantes acertam ou erram>
-- Tipo de erro: <conceito/exceção/leitura/desatualização/estratégia>
-- Prevenção: <ação verificável>
-- Fonte: <link oficial>
-- Revisão: <data ou intervalo>
+<!-- repetir, sem lacunas, até ### Questão 20 -->
 
 ### Diagnóstico agregado
 - Acertos: <quantidade, total e percentual>
@@ -108,10 +109,35 @@ Para cada sessão concluída, criar/atualizar uma única entrada em `sessions`, 
 <data ou intervalo e tarefa>
 ```
 
-Repetir o bloco `### Questão N` para cada questão respondida antes de escrever o diagnóstico agregado. Manter 5–8 itens em **Resumo estratégico**. Limitar o mapa a três níveis e usar somente as categorias/paleta: `conceito` azul `#2563EB`, `regra` verde `#16A34A`, `excecao` amarelo `#D97706`, `pegadinha` vermelho `#DC2626`, `jurisprudencia` roxo `#7C3AED`.
+Usar no máximo três níveis no mapa e somente: `conceito` azul `#2563EB`, `regra` verde `#16A34A`, `excecao` amarelo `#D97706`, `pegadinha` vermelho `#DC2626` e `jurisprudencia` roxo `#7C3AED`.
 
-No fechamento, acrescentar no chat o diagnóstico do bloco: acertos, padrões de erro, prioridade e próxima revisão. Então executar `python3 <skill-dir>/scripts/build_trilha.py <trail_dir>` depois de cada sessão concluída. A apostila deve reunir as sessões na ordem do manifesto, ter índice clicável, progresso global e por módulo, fontes e todos os feedbacks.
+## Árvore híbrida e saídas
+
+`trilha.json` e `modulos/.../sessoes/*.md` são fontes canônicas. Painéis, materiais, agendas e apostilas são derivados; não editá-los manualmente. Uma sessão multi-tópico tem uma só fonte no primeiro tópico; os demais tópicos apontam para ela, sem duplicá-la.
+
+```text
+estudos/<trilha>/
+├── trilha.json
+├── painel/{indice,progresso,agenda-de-revisoes}.md
+├── modulos/01-<modulo>/topicos/01-<topico>/
+│   ├── sessoes/001-<sessao>.md
+│   ├── resumo.md
+│   ├── mapa-mental.md
+│   └── questoes.md
+├── materiais/{resumos,mapas-mentais,caderno-de-questoes}.md
+├── revisoes/agenda.md
+├── apostila/{apostila.md,apostila.html,apostila.pdf}
+└── backups/
+```
+
+Após um fechamento concluído, executar:
+
+```bash
+python3 <skill-dir>/scripts/build_trilha.py <trail_dir>
+```
+
+Isso gera as três leituras da mesma fonte: `apostila.md` para versionamento e leitura rápida; `apostila.html` autocontida, com índice lateral sincronizado à rolagem, navegação sem JavaScript e estilos de impressão; e `apostila.pdf` paginada para estudo/impressão. O build é transacional: se uma saída falhar, preservar as versões anteriores.
 
 ## Sem filesystem
 
-Entregar o mesmo fechamento no chat, declarar explicitamente que não houve persistência e não alegar atualização de trilha, progresso ou apostila.
+Aplicar a mesma sequência no chat, declarar que não houve persistência e não alegar atualização de trilha, progresso ou apostila.

@@ -7,122 +7,119 @@
 <p align="center">
   <a href="https://github.com/jocielle-tech/concurso-direito-tutor"><img src="https://img.shields.io/badge/skill-Codex-111827" alt="Skill para Codex"></a>
   <img src="https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white" alt="Python 3">
-  <img src="https://img.shields.io/badge/depend%C3%AAncias-biblioteca%20padr%C3%A3o-16A34A" alt="Biblioteca padrão do Python">
+  <img src="https://img.shields.io/badge/PDF-ReportLab-16A34A" alt="Dependência para PDF">
   <img src="https://img.shields.io/badge/idioma-portugu%C3%AAs-2563EB" alt="Português">
 </p>
 
-Uma skill para transformar a preparação para concursos públicos de Direito em uma trilha de estudo persistente, auditável e visual. Ela organiza sessões, questões, feedbacks, revisões, fontes e uma apostila cumulativa — sem perder de vista o que realmente importa para a prova.
+Uma skill para transformar a preparação para concursos públicos de Direito em uma trilha persistente, auditável e visual. Ela une ensino focado na prova, recuperação ativa, fontes oficiais e materiais fáceis de reencontrar por assunto ou por tipo.
 
-> O conteúdo é orientado ao estudo para concursos brasileiros. A confirmação de legislação, jurisprudência, súmulas, editais e regras de banca deve sempre priorizar fontes oficiais atualizadas.
+> O conteúdo é orientado ao estudo para concursos brasileiros. Confirme legislação, jurisprudência, súmulas, editais e regras de banca em fontes oficiais atualizadas.
 
-## Por que usar
+## Novidades
 
-Em vez de acumular anotações soltas, cada sessão principal passa a deixar um registro útil para a revisão:
-
-- trilha com módulos, tópicos ponderados e progresso global;
-- explicação focada em regra, exemplo, exceção e pegadinha;
-- questões originais com correção e feedback individual;
-- mapa mental colorido, com categorias consistentes;
-- índice clicável e régua percentual da trilha;
-- apostila em Markdown e HTML, reconstruída de forma determinística.
+- Cada sessão principal traz **exatamente 20 questões juntas**, corrigidas somente depois das 20 respostas.
+- O material agora usa uma **árvore híbrida**: a sessão canônica fica no tópico e resumos, mapas, questões, painéis e revisões também podem ser encontrados por tipo.
+- A apostila é construída nos três formatos: **Markdown**, **HTML interativo** e **PDF**.
+- O HTML tem índice lateral, tópico ativo sincronizado à rolagem, navegação utilizável sem JavaScript e estilo de impressão.
+- Trilhas antigas são detectadas com segurança, recebem backup ZIP e podem ser migradas sem perder sessões.
 
 ## O resultado
 
-Esta é uma captura de uma apostila HTML gerada por uma trilha de exemplo: há índice, progresso, legenda colorida do mapa mental, sessão de estudo e feedbacks.
+Esta é uma captura de uma apostila HTML gerada por uma trilha de exemplo: índice lateral, tópico ativo, progresso, mapa mental e questões formatadas fazem parte do mesmo documento.
 
 <p align="center">
-  <img src="assets/readme/apostila-preview.png" alt="Prévia de apostila de Direito Constitucional com índice clicável, progresso de 70%, legenda de mapa mental e conteúdo da sessão" width="100%">
+  <img src="assets/readme/apostila-preview.png" alt="Prévia de apostila de Direito Constitucional com índice lateral, tópico ativo, progresso, mapa mental e questões formatadas" width="100%">
 </p>
 
 ## Instalação
 
-Clone o repositório e coloque a pasta da skill no diretório de skills do Codex:
+Clone o repositório, instale as dependências de geração e validação de PDF e coloque a pasta da skill no diretório de skills do Codex:
 
 ```bash
 git clone https://github.com/jocielle-tech/concurso-direito-tutor.git
+cd concurso-direito-tutor
+python3 -m pip install -r requirements.txt
 mkdir -p ~/.codex/skills
-cp -R concurso-direito-tutor ~/.codex/skills/concurso-direito-tutor
+cp -R . ~/.codex/skills/concurso-direito-tutor
 ```
 
-Em instalações que definem `CODEX_HOME`, use o respectivo diretório `skills` dessa instalação. Reinicie ou recarregue o ambiente do Codex para que a skill seja descoberta.
+Em instalações que definem `CODEX_HOME`, use o respectivo diretório `skills`. Recarregue o Codex após a cópia. O PDF requer ReportLab; `pypdf` e `pdfplumber` apoiam a validação. O comando `--check` funciona sem precisar gerar PDF.
 
 ## Como usar
 
-No Codex, inicie uma conversa com um pedido concreto. A skill coleta apenas as informações que realmente alteram a estratégia — cargo, banca, edital, nível, tempo disponível e objetivo.
+No Codex, comece com um pedido concreto. A skill coleta apenas dados que mudam a estratégia: cargo, banca, edital, nível, tempo disponível e objetivo.
 
 ```text
 Use $concurso-direito-tutor para criar uma trilha de Direito Constitucional
 para Analista Jurídico. Tenho 6 horas por semana e ainda não tenho edital.
 ```
 
-Para começar uma sessão principal:
+Para abrir uma sessão principal, a prática vem toda de uma vez: 20 questões, numeradas de 1 a 20, sem gabarito. A correção individual e o diagnóstico só aparecem depois das 20 respostas.
 
 ```text
-Vamos estudar controle difuso. Explique o núcleo de prova, faça três questões
-no estilo Cebraspe e espere minhas respostas antes de corrigir.
+Vamos estudar controle difuso. Explique o núcleo de prova, apresente as 20
+questões no estilo Cebraspe e espere minhas respostas antes de corrigir.
 ```
 
-Para uma dúvida pontual, basta perguntar. Dúvidas rápidas são respondidas no chat e não criam nem encerram sessões artificialmente.
+Se o estudante abandonar explicitamente as questões pendentes, a sessão fica `in_progress`: somente as respondidas são corrigidas e o progresso não aumenta. Ao concluir, cada feedback contém `Tópico`, resultado, fundamento, alternativas úteis, tipo de erro, prevenção, fonte e revisão.
 
-### Exemplo de fechamento de sessão
+Para uma dúvida pontual, basta perguntar. Dúvidas rápidas não criam nem encerram sessões artificialmente.
 
-Após a prática e a correção, a sessão registra um diagnóstico que pode ser revisitado:
+## Estrutura híbrida e formatos
 
-```text
-Acertos: 2 de 3 (67%)
-Padrão de erro: reserva de plenário
-Prioridade: diferenciar competência do juiz e do tribunal
-Próxima revisão: em 7 dias, refazer 3 questões sobre o ponto fraco
-```
-
-Cada questão recebe fundamento, alternativas úteis, tipo de erro, prevenção, fonte e indicação de revisão. Os tipos de erro padronizados são: conceito, exceção, leitura, desatualização e estratégia.
-
-## O que a skill gera
-
-Ao iniciar uma trilha persistente, a estrutura fica em `estudos/<slug>/`:
+`trilha.json` e os arquivos de sessão são as fontes de verdade. Os painéis, consolidações, agendas e apostilas são derivados. Uma sessão com vários tópicos tem uma única fonte canônica no primeiro tópico; os materiais dos demais tópicos apontam para ela, sem duplicar conteúdo.
 
 ```text
 estudos/direito-constitucional/
 ├── trilha.json
-├── sessoes/
-│   └── 001-controle-difuso.md
-├── apostila.md
-└── apostila.html
+├── painel/
+│   ├── indice.md
+│   ├── progresso.md
+│   └── agenda-de-revisoes.md
+├── modulos/01-direito-constitucional/topicos/01-controle-difuso/
+│   ├── sessoes/001-controle-difuso.md
+│   ├── resumo.md
+│   ├── mapa-mental.md
+│   └── questoes.md
+├── materiais/{resumos,mapas-mentais,caderno-de-questoes}.md
+├── revisoes/agenda.md
+├── apostila/{apostila.md,apostila.html,apostila.pdf}
+└── backups/
 ```
 
-| Arquivo | Finalidade |
+| Saída | Uso |
 | --- | --- |
-| `trilha.json` | Fonte de verdade da trilha: módulos, tópicos, pesos, estado e sessões. |
-| `sessoes/*.md` | Conteúdo da sessão, resumo estratégico, mapa mental, questões, feedbacks, fontes e revisão. |
-| `apostila.md` | Versão cumulativa em Markdown, ideal para versionamento e leitura rápida. |
-| `apostila.html` | Versão visual e imprimível, com índice, barra de progresso e cores do mapa mental. |
+| `apostila/apostila.md` | Texto cumulativo para versionamento e leitura rápida. |
+| `apostila/apostila.html` | Leitura interativa: índice lateral fixo, links internos, tópico ativo sincronizado à rolagem e impressão limpa. |
+| `apostila/apostila.pdf` | Caderno paginado para estudo ou impressão, com navegação e links. |
 
-O gerador local valida o manifesto e produz as duas versões da apostila:
+Gere a árvore e os três formatos ao encerrar uma sessão concluída:
 
 ```bash
 python3 scripts/build_trilha.py estudos/direito-constitucional
 ```
 
-Para validar uma trilha sem escrever ou modificar a apostila:
+Valide uma trilha sem escrever:
 
 ```bash
 python3 scripts/build_trilha.py --check estudos/direito-constitucional
 ```
 
-## Progresso que mostra o que falta
+## Retomar e migrar uma trilha antiga
 
-O progresso é ponderado: cada tópico possui um peso positivo, e somente tópicos concluídos contam na porcentagem. A apostila mostra a régua global e o progresso por módulo.
+Sempre rode `--check` antes de retomar. Se o resultado for exatamente `MIGRATION_REQUIRED`, avise o estudante e migre a estrutura:
 
-```text
-Progresso global: 70%
-Régua de progresso: 70% ███████░░░
+```bash
+python3 scripts/build_trilha.py --migrate estudos/direito-constitucional
 ```
 
-Se a trilha nasceu sem edital, ela pode começar como provisória. Quando o edital chegar, os módulos e pesos são recalibrados, sem apagar sessões, arquivos ou estados já registrados.
+A migração cria um ZIP em `backups/`, preserva IDs, estados e conteúdo das sessões, reorganiza os caminhos canônicos e não repete trabalho se já estiver concluída. Se o `--check` retornar qualquer outro erro, corrija-o antes de gerar arquivos.
 
-## Mapa mental com leitura rápida
+## Progresso e mapa mental
 
-As categorias do mapa mental são deliberadamente limitadas para que o material seja escaneável em revisão:
+O progresso é ponderado: cada tópico tem peso positivo e somente tópicos concluídos entram na porcentagem. Uma trilha provisória pode ser recalibrada quando o edital chegar, sem apagar sessões ou estados.
+
+Os mapas mentais usam categorias consistentes para leitura rápida:
 
 | Categoria | Cor | Uso |
 | --- | --- | --- |
@@ -132,25 +129,16 @@ As categorias do mapa mental são deliberadamente limitadas para que o material 
 | Pegadinha | Vermelho `#DC2626` | Confusão previsível de prova. |
 | Jurisprudência | Roxo `#7C3AED` | Tese, precedente ou orientação importante. |
 
-## Personalização e segurança do estudo
-
-- Ajuste módulos, tópicos e pesos no `trilha.json` conforme o edital e a banca.
-- Mantenha IDs e vínculos entre tópicos e sessões consistentes; o comando `--check` aponta inconsistências antes da geração.
-- Conclua uma sessão apenas depois de ensinar, praticar e registrar o feedback; tópicos em andamento não aumentam a porcentagem.
-- Use links diretos para as fontes que sustentam atualizações relevantes.
-
 ## Fontes jurídicas e limites
 
-A skill deve diferenciar texto legal, jurisprudência, doutrina e estratégia de prova. Para informação atual, priorize fontes como [Planalto](https://www.planalto.gov.br/), [STF](https://portal.stf.jus.br/) e [STJ](https://www.stj.jus.br/). Cite a fonte junto da afirmação relevante, com a data de consulta quando aplicável.
+Diferencie texto legal, jurisprudência, doutrina e estratégia de prova. Para informação atual, priorize [Planalto](https://www.planalto.gov.br/), [STF](https://portal.stf.jus.br/) e [STJ](https://www.stj.jus.br/), citando a fonte com data de consulta quando aplicável.
 
-Ela não substitui a conferência da fonte oficial nem oferece aconselhamento jurídico individual. Quando não houver fonte oficial acessível ou houver divergência, isso deve ser declarado em vez de apresentar memória como certeza.
+A skill não substitui a conferência da fonte oficial nem oferece aconselhamento jurídico individual. Quando não houver fonte oficial acessível ou houver divergência, isso deve ser declarado.
 
 ## Desenvolvimento
 
-O gerador utiliza apenas a biblioteca padrão do Python. Para executar a suíte de testes:
+Execute a suíte completa:
 
 ```bash
 python3 -B -m unittest discover -s tests -v
 ```
-
-O manifesto também pode ser validado sem gerar arquivos, com `--check`, como mostrado acima.
