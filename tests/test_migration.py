@@ -6,7 +6,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from scripts.trilha_outputs import canonical_session_relative_path
+from scripts.trilha_outputs import migration_session_relative_path
 from tests.test_build_trilha import valid_session
 
 
@@ -159,7 +159,7 @@ class MigrationTests(unittest.TestCase):
             migrate_legacy_trail(
                 self.trail,
                 build_failure,
-                canonical_session_relative_path,
+                migration_session_relative_path,
                 datetime(2026, 8, 15, 12, 30, 45),
             )
 
@@ -191,7 +191,7 @@ class MigrationTests(unittest.TestCase):
         marker.write_text("keep", encoding="utf-8")
 
         with self.assertRaisesRegex(OSError, "caminho de troca já existe"):
-            migrate_legacy_trail(self.trail, lambda _stage: None, canonical_session_relative_path, now)
+            migrate_legacy_trail(self.trail, lambda _stage: None, migration_session_relative_path, now)
 
         self.assertEqual(snapshot_tree(self.trail), before)
         self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
@@ -207,7 +207,7 @@ class MigrationTests(unittest.TestCase):
         before = snapshot_tree(self.trail)
 
         with self.assertRaisesRegex(OSError, "backup de migração já existe"):
-            migrate_legacy_trail(self.trail, lambda _stage: None, canonical_session_relative_path, now)
+            migrate_legacy_trail(self.trail, lambda _stage: None, migration_session_relative_path, now)
 
         self.assertEqual(snapshot_tree(self.trail), before)
         self.assertEqual(backup.read_bytes(), b"previous backup bytes")

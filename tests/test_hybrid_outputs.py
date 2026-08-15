@@ -106,6 +106,74 @@ class HybridOutputTests(unittest.TestCase):
         for relative in expected:
             if relative.endswith(".md"):
                 self.assertTrue((self.trail / relative).read_text(encoding="utf-8").startswith(GENERATED_NOTICE))
+        self.assertTrue(
+            (self.trail / "apostila/apostila.html").read_text(encoding="utf-8").startswith(
+                "<!-- GERADO AUTOMATICAMENTE. NÃO EDITE. -->"
+            )
+        )
+
+    def test_build_keeps_recorded_session_path_after_manifest_reordering_and_renames(self):
+        manifest_path = self.trail / "trilha.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        session = manifest["sessions"][0]
+        recorded = Path(session["file"])
+        original_source = self.trail / recorded
+        module = manifest["modules"][0]
+        topic = module["topics"][0]
+
+        module["title"] = "Constitucional renomeado"
+        topic["title"] = "Controle renomeado"
+        session["title"] = "Sessão renomeada"
+        original_source.write_text(valid_session("Sessão renomeada"), encoding="utf-8")
+        module["topics"].insert(0, {
+            "id": "direitos",
+            "title": "Direitos fundamentais",
+            "weight": 1,
+            "status": "not_started",
+            "sessions": [],
+        })
+        manifest["modules"].insert(0, {
+            "id": "administrativo",
+            "title": "Direito Administrativo",
+            "topics": [{
+                "id": "atos",
+                "title": "Atos administrativos",
+                "weight": 1,
+                "status": "not_started",
+                "sessions": ["s000"],
+            }],
+        })
+        planned_path = Path(
+            "modulos/09-estavel/topicos/09-estavel/sessoes/009-sessao-planejada.md"
+        )
+        planned = {
+            "id": "s000",
+            "title": "Sessão planejada",
+            "date": "2026-08-09",
+            "status": "not_started",
+            "module_id": "administrativo",
+            "topic_ids": ["atos"],
+            "file": planned_path.as_posix(),
+        }
+        manifest["sessions"].insert(0, planned)
+        planned_source = self.trail / planned_path
+        planned_source.parent.mkdir(parents=True)
+        planned_source.write_text("# Sessão planejada\n\nConteúdo pendente.\n", encoding="utf-8")
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        recomputed = self.trail / (
+            "modulos/02-constitucional-renomeado/topicos/02-controle-renomeado/"
+            "sessoes/002-sessao-renomeada.md"
+        )
+        self.assertTrue(original_source.is_file())
+        self.assertFalse(recomputed.exists())
+        session_sources = sorted(path.relative_to(self.trail) for path in self.trail.glob("modulos/**/sessoes/*.md"))
+        self.assertEqual(session_sources, sorted((recorded, planned_path)))
+        index = (self.trail / "painel/indice.md").read_text(encoding="utf-8")
+        self.assertIn(f"](../{recorded.as_posix()})", index)
 
     def test_canonical_build_does_not_create_root_apostila_duplicates(self):
         result = self.run_build()
@@ -311,6 +379,54 @@ class HybridOutputTests(unittest.TestCase):
             self.assertIn("Prioridade: consolidar competência.", agenda)
             self.assertNotIn("2026-08-10", agenda)
         self.assert_every_local_link_resolves()
+
+    def test_agendas_sort_by_review_date_then_stable_priority(self):
+        manifest_path = self.trail / "trilha.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        topic = manifest["modules"][0]["topics"][0]
+        cases = (
+            ("s-invalid", "Data inválida", "quando possível", "alta"),
+            ("s-late", "Data posterior", "2026-09-01", "média"),
+            ("s-low", "Mesma data baixa", "2026-08-20", "baixa"),
+            ("s-high", "Mesma data alta", "2026-08-20", "alta"),
+        )
+        manifest["sessions"] = []
+        topic["sessions"] = []
+        for index, (session_id, title, review, priority) in enumerate(cases, 1):
+            relative = Path(
+                "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes"
+            ) / f"{index:03d}-{session_id}.md"
+            manifest["sessions"].append({
+                "id": session_id,
+                "title": title,
+                "date": f"2026-08-{index:02d}",
+                "status": "completed",
+                "module_id": "constitucional",
+                "topic_ids": ["controle"],
+                "file": relative.as_posix(),
+            })
+            topic["sessions"].append(session_id)
+            text = valid_session(title).replace(
+                "- Prioridade: consolidar competência.", f"- Prioridade: {priority}"
+            ).replace(
+                "## Próxima revisão\n\nEm sete dias.", f"## Próxima revisão\n\n{review}"
+            )
+            target = self.trail / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for relative in ("painel/agenda-de-revisoes.md", "revisoes/agenda.md"):
+            agenda = (self.trail / relative).read_text(encoding="utf-8")
+            self.assertIn("Prioridades: alta, média, baixa; valores desconhecidos depois.", agenda)
+            positions = [
+                agenda.index(title)
+                for title in ("Mesma data alta", "Mesma data baixa", "Data posterior", "Data inválida")
+            ]
+            self.assertEqual(positions, sorted(positions))
 
     def assert_every_local_link_resolves(self):
         for source in self.trail.rglob("*.md"):

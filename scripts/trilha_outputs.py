@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 import unicodedata
+from datetime import date
 from pathlib import Path
 
 
@@ -24,6 +25,13 @@ def ordered_segment(index, title):
 
 
 def canonical_session_relative_path(manifest, session):
+    """Return the validated, recorded source path without renaming it."""
+    del manifest
+    return Path(session["file"])
+
+
+def migration_session_relative_path(manifest, session):
+    """Choose an initial canonical path while migrating a legacy session."""
     module_index = next(
         index for index, item in enumerate(manifest["modules"], 1) if item["id"] == session["module_id"]
     )
@@ -98,12 +106,39 @@ def _review_details(session, text):
     return review, match.group(1) if match else "não definida"
 
 
+def _normalized_priority(priority):
+    return unicodedata.normalize("NFKD", priority).encode("ascii", "ignore").decode("ascii").lower()
+
+
+def _review_sort_key(session, review, priority):
+    match = re.search(r"\b\d{4}-\d{2}-\d{2}\b", review)
+    parsed_date = None
+    if match:
+        try:
+            parsed_date = date.fromisoformat(match.group(0))
+        except ValueError:
+            pass
+    normalized_priority = _normalized_priority(priority)
+    priority_word = next(
+        (word for word in ("alta", "media", "baixa") if re.search(rf"\b{word}\b", normalized_priority)),
+        None,
+    )
+    priority_rank = {"alta": 0, "media": 1, "baixa": 2}.get(priority_word, 3)
+    return (
+        parsed_date is None,
+        parsed_date or date.max,
+        priority_rank,
+        normalized_priority,
+        session["id"],
+    )
+
+
 def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_html, apostila_pdf=None):
     """Return all generated artifacts without writing any of them to disk."""
     del trail  # The interface accepts the trail for callers; all returned paths are relative.
     outputs = {
         Path("apostila/apostila.md"): (GENERATED_NOTICE + apostila_md).encode("utf-8"),
-        Path("apostila/apostila.html"): apostila_html.encode("utf-8"),
+        Path("apostila/apostila.html"): (GENERATED_NOTICE + apostila_html).encode("utf-8"),
     }
     if apostila_pdf is not None:
         outputs[Path("apostila/apostila.pdf")] = apostila_pdf
@@ -169,12 +204,20 @@ def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_ht
         f"- {module['title']} / {topic['title']}: {_progress([topic])}%"
         for module in manifest["modules"] for topic in module["topics"]
     )
-    review_agenda = []
+    review_entries = []
     for session in manifest["sessions"]:
         review, priority = _review_details(session, session_files[session["id"]])
-        review_agenda.append(
-            f"- {session['title']} — Próxima revisão: {review}; Prioridade: {priority}."
+        review_entries.append((
+            _review_sort_key(session, review, priority),
+            f"- {session['title']} — Próxima revisão: {review}; Prioridade: {priority.rstrip('.')}.",
+        ))
+    review_agenda = [
+        (
+            "Ordenação: próxima revisão em data ISO crescente; datas ausentes ou inválidas ficam "
+            "por último. Prioridades: alta, média, baixa; valores desconhecidos depois."
         )
+    ]
+    review_agenda.extend(line for _key, line in sorted(review_entries))
 
     outputs.update({
         Path("painel/indice.md"): _generated("Índice da trilha", panel_index).encode("utf-8"),

@@ -14,11 +14,11 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 try:
-    from scripts.trilha_outputs import build_output_bundle, canonical_session_relative_path, publish_bundle
+    from scripts.trilha_outputs import build_output_bundle, migration_session_relative_path, publish_bundle
     from scripts.trilha_migration import is_legacy_trail, migrate_legacy_trail
     from scripts.trilha_pdf import PdfDependencyError, render_pdf
 except ModuleNotFoundError:  # Direct ``python scripts/build_trilha.py`` execution.
-    from trilha_outputs import build_output_bundle, canonical_session_relative_path, publish_bundle
+    from trilha_outputs import build_output_bundle, migration_session_relative_path, publish_bundle
     from trilha_migration import is_legacy_trail, migrate_legacy_trail
     from trilha_pdf import PdfDependencyError, render_pdf
 
@@ -623,7 +623,7 @@ def main(argv=None):
             if not args.migrate:
                 print("MIGRATION_REQUIRED", file=sys.stderr)
                 return MIGRATION_REQUIRED_EXIT
-            migrate_legacy_trail(trail, build_trail, canonical_session_relative_path, datetime.now())
+            migrate_legacy_trail(trail, build_trail, migration_session_relative_path, datetime.now())
         elif not args.check:
             build_trail(trail)
     except (ValidationError, PdfDependencyError, OSError, UnicodeDecodeError) as exc:
