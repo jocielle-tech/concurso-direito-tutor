@@ -235,17 +235,17 @@ def migrate_legacy_trail(trail, build_staged, canonical_path, now):
         for session in manifest["sessions"]:
             old_relative = Path(session["file"])
             source = _contained_file(stage, old_relative)
-            new_relative = Path(canonical_path(manifest, session))
-            destination = _contained_destination(stage, new_relative)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if source != destination:
-                shutil.copyfile(source, destination)
-                if source.read_bytes() != destination.read_bytes():
-                    raise OSError(f"não foi possível copiar sessão: {old_relative.as_posix()}")
-            session["file"] = new_relative.as_posix()
-            canonical_files.append(session["file"])
             if old_relative.parts[:1] == ("sessoes",):
+                new_relative = Path(canonical_path(manifest, session))
+                destination = _contained_destination(stage, new_relative)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if source != destination:
+                    shutil.copyfile(source, destination)
+                    if source.read_bytes() != destination.read_bytes():
+                        raise OSError(f"não foi possível copiar sessão: {old_relative.as_posix()}")
+                session["file"] = new_relative.as_posix()
                 legacy_paths.append(old_relative)
+            canonical_files.append(session["file"])
         manifest_path.write_text(_rewrite_session_files(manifest_text, canonical_files), encoding="utf-8")
         _remove_legacy_sources(stage, legacy_paths)
         for legacy_output in ("apostila.md", "apostila.html"):

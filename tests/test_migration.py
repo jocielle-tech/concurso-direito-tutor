@@ -79,6 +79,20 @@ class MigrationTests(unittest.TestCase):
         (self.trail / "apostila.md").write_text("apostila legada", encoding="utf-8")
         (self.trail / "apostila.html").write_text("<p>apostila legada</p>", encoding="utf-8")
 
+    def write_mixed_trail(self):
+        self.write_legacy_trail()
+        manifest_path = self.trail / "trilha.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        stable_path = "modulos/99-ordem-historica/topicos/42-titulo-historico/sessoes/777-fonte-estavel.md"
+        manifest["sessions"][1]["file"] = stable_path
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        stable_source = self.trail / stable_path
+        stable_source.parent.mkdir(parents=True)
+        (self.trail / "sessoes/002.md").replace(stable_source)
+        return stable_path
+
     def test_check_reports_migration_required_without_writes(self):
         self.write_legacy_trail()
         before = snapshot_tree(self.trail)
@@ -178,6 +192,31 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(snapshot_tree(self.trail), before)
         self.assertEqual(len(list((self.trail / "backups").glob("migracao-*.zip"))), 1)
+
+    def test_mixed_migration_updates_only_legacy_session_and_keeps_one_source_each(self):
+        stable_path = self.write_mixed_trail()
+        stable_bytes = (self.trail / stable_path).read_bytes()
+
+        result = self.run_build("--migrate")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.trail / "trilha.json").read_text(encoding="utf-8"))
+        files = {session["id"]: session["file"] for session in manifest["sessions"]}
+        self.assertEqual(
+            files["s001"],
+            "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md",
+        )
+        self.assertEqual(files["s002"], stable_path)
+        self.assertEqual((self.trail / stable_path).read_bytes(), stable_bytes)
+        recorded_sources = {self.trail / relative for relative in files.values()}
+        actual_sources = set(self.trail.glob("modulos/**/sessoes/*.md"))
+        self.assertEqual(actual_sources, recorded_sources)
+        self.assertFalse((self.trail / "sessoes").exists())
+
+        before_second_run = snapshot_tree(self.trail)
+        second = self.run_build("--migrate")
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(snapshot_tree(self.trail), before_second_run)
 
     def test_preexisting_swap_path_is_rejected_without_overwriting_it(self):
         from scripts.trilha_migration import migrate_legacy_trail, swap_path_for
