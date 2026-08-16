@@ -131,7 +131,8 @@ def _png_dimensions(content):
         raise ValueError("assinatura PNG inválida")
     position = len(PNG_SIGNATURE)
     width = height = None
-    found_idat = found_iend = False
+    image_data_state = "before_idat"
+    found_iend = found_palette = False
     while position < len(content):
         if position + 12 > len(content):
             raise ValueError("chunk PNG truncado")
@@ -148,19 +149,34 @@ def _png_dimensions(content):
             if kind != b"IHDR" or length != 13:
                 raise ValueError("cabeçalho IHDR PNG inválido")
             width, height = struct.unpack(">II", payload[:8])
+        elif kind == b"IHDR":
+            raise ValueError("chunk IHDR PNG duplicado")
         elif kind == b"IDAT":
-            found_idat = True
+            if length == 0:
+                raise ValueError("chunk IDAT PNG vazio")
+            if image_data_state == "after_idat":
+                raise ValueError("chunks IDAT PNG devem ser consecutivos")
+            image_data_state = "in_idat"
+        elif kind == b"PLTE":
+            if image_data_state != "before_idat" or found_palette:
+                raise ValueError("chunk PLTE PNG fora de ordem")
+            found_palette = True
         elif kind == b"IEND":
-            if length != 0 or chunk_end != len(content):
+            if length != 0 or chunk_end != len(content) or image_data_state != "in_idat":
                 raise ValueError("chunk IEND PNG inválido")
             found_iend = True
             break
+        else:
+            if not kind[0] & 0x20:
+                raise ValueError("chunk PNG crítico desconhecido")
+            if image_data_state == "in_idat":
+                image_data_state = "after_idat"
         position = chunk_end
     if width is None or height is None:
         raise ValueError("cabeçalho IHDR PNG inválido")
     if width == 0 or height == 0:
         raise ValueError("dimensões PNG inválidas")
-    if not found_idat:
+    if image_data_state == "before_idat":
         raise ValueError("chunk IDAT PNG ausente")
     if not found_iend:
         raise ValueError("chunk IEND PNG ausente")

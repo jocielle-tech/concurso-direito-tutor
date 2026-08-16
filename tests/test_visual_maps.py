@@ -1,8 +1,10 @@
 import copy
 import json
+import struct
 import subprocess
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
 from scripts.trilha_visual_maps import build_visual_map_specs, load_visual_map_assets
@@ -12,6 +14,7 @@ from tests.trilha_support import png_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 PREPARE = ROOT / "scripts" / "prepare_visual_map.py"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def snapshot_tree(root):
@@ -26,6 +29,17 @@ def algorithm_session(title, algorithm_lines):
     start = session.index("## Mapa mental\n\n") + len("## Mapa mental\n\n")
     end = session.index("\n## Questões e feedback", start)
     return session[:start] + "\n".join(algorithm_lines) + session[end:]
+
+
+def png_chunk(kind, payload):
+    return (
+        struct.pack(">I", len(payload)) + kind + payload
+        + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    )
+
+
+def png_with_chunks(*chunks):
+    return PNG_SIGNATURE + b"".join(chunks)
 
 
 class VisualMapTests(unittest.TestCase):
@@ -168,6 +182,32 @@ class VisualMapTests(unittest.TestCase):
 
         self.assertEqual(asset.status, "invalid")
         self.assertIn("IEND", asset.error)
+
+    def test_loader_rejects_invalid_png_chunk_order_and_empty_image_data(self):
+        spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+        target = self.trail / spec.expected_path
+        target.parent.mkdir(parents=True)
+        header = struct.pack(">IIBBBBB", 1536, 1024, 8, 2, 0, 0, 0)
+        cases = {
+            "ihdr_duplicado": png_with_chunks(
+                png_chunk(b"IHDR", header), png_chunk(b"IHDR", header),
+                png_chunk(b"IDAT", b"x"), png_chunk(b"IEND", b""),
+            ),
+            "idat_vazio": png_with_chunks(
+                png_chunk(b"IHDR", header), png_chunk(b"IDAT", b""), png_chunk(b"IEND", b""),
+            ),
+            "idat_interrompido": png_with_chunks(
+                png_chunk(b"IHDR", header), png_chunk(b"IDAT", b"x"),
+                png_chunk(b"tEXt", b"note\x00value"), png_chunk(b"IDAT", b"y"),
+                png_chunk(b"IEND", b""),
+            ),
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                target.write_bytes(content)
+                asset = load_visual_map_assets(self.trail, {"controle": spec})["controle"]
+                self.assertEqual(asset.status, "invalid")
+                self.assertIsNotNone(asset.error)
 
     def test_loader_rejects_path_outside_trail(self):
         spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
