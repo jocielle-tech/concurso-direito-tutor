@@ -20,7 +20,8 @@ Uma skill para transformar a preparação para concursos públicos de Direito em
 - Cada sessão principal traz **exatamente 20 questões juntas**, corrigidas somente depois das 20 respostas.
 - O material agora usa uma **árvore híbrida**: a sessão canônica fica no tópico e resumos, mapas, questões, painéis e revisões também podem ser encontrados por tipo.
 - A apostila é construída nos três formatos: **Markdown**, **HTML interativo** e **PDF**.
-- O HTML tem índice lateral, tópico ativo sincronizado à rolagem, navegação utilizável sem JavaScript e estilo de impressão.
+- Cada tópico concluído pode ganhar um **mapa algorítmico visual nativo**, com cache por conteúdo e sem API key.
+- O HTML é um dashboard de estudo moderno: índice lateral, tópico ativo sincronizado à rolagem, navegação utilizável sem JavaScript, ampliação do mapa e estilo de impressão. O PDF acompanha a mesma hierarquia visual e preserva o algoritmo pesquisável.
 - Trilhas antigas são detectadas com segurança, recebem backup ZIP e podem ser migradas sem perder sessões.
 
 ## O resultado
@@ -30,6 +31,22 @@ Esta é uma captura de uma apostila HTML gerada por uma trilha de exemplo: índi
 <p align="center">
   <img src="assets/readme/apostila-preview.png" alt="Prévia de apostila de Direito Constitucional com índice lateral, tópico ativo, progresso, mapa mental e questões formatadas" width="100%">
 </p>
+
+## Mapas algorítmicos nativos
+
+O mapa textual continua sendo a fonte de verdade. Ao concluir um tópico, a skill prepara um pedido de imagem com os rótulos jurídicos do algoritmo e usa a geração nativa do Codex — **sem `OPENAI_API_KEY`, CLI de imagem ou serviço externo**. O PNG aprovado é apenas um complemento visual da apostila.
+
+<p align="center">
+  <img src="assets/readme/mapa-algoritmico-preview.png" alt="Mapa algorítmico visual de controle de constitucionalidade, com decisões e alertas jurídicos" width="100%">
+</p>
+
+```text
+tópico concluído → prepare_visual_map.py → ready: reutilizar cache
+                                      └→ missing/invalid: imagegen nativo → inspecionar → salvar PNG
+                                                                  └→ indisponível ou segunda falha: fallback textual
+```
+
+O cache fica em `assets/mapas/<topico>-<hash>/<source_hash>.png`. Alterar o mapa textual cria uma nova chave de conteúdo e preserva os arquivos antigos. O HTML incorpora imagens válidas em Base64; o PDF usa os mesmos bytes. Em ausência ou invalidez, ambos mantêm o fluxograma textual determinístico.
 
 ## Instalação
 
@@ -84,14 +101,15 @@ estudos/direito-constitucional/
 ├── materiais/{resumos,mapas-mentais,caderno-de-questoes}.md
 ├── revisoes/agenda.md
 ├── apostila/{apostila.md,apostila.html,apostila.pdf}
+├── assets/mapas/<topico>-<hash>/<source_hash>.png
 └── backups/
 ```
 
 | Saída | Uso |
 | --- | --- |
 | `apostila/apostila.md` | Texto cumulativo para versionamento e leitura rápida. |
-| `apostila/apostila.html` | Leitura interativa: índice lateral fixo, links internos, tópico ativo sincronizado à rolagem e impressão limpa. |
-| `apostila/apostila.pdf` | Caderno paginado para estudo ou impressão, com navegação e links. |
+| `apostila/apostila.html` | Dashboard autocontido: índice lateral fixo, links internos, tópico ativo sincronizado, progresso, questões em cartões e mapa visual ampliável. |
+| `apostila/apostila.pdf` | Caderno paginado para estudo ou impressão, com hierarquia visual moderna, mapa e algoritmo pesquisável. |
 
 Gere a árvore e os três formatos ao encerrar uma sessão concluída:
 

@@ -138,6 +138,24 @@ python3 <skill-dir>/scripts/build_trilha.py <trail_dir>
 
 Isso gera as três leituras da mesma fonte: `apostila.md` para versionamento e leitura rápida; `apostila.html` autocontida, com índice lateral sincronizado à rolagem, navegação sem JavaScript e estilos de impressão; e `apostila.pdf` paginada para estudo/impressão. O build é transacional: se uma saída falhar, preservar as versões anteriores.
 
+## Mapa algorítmico nativo
+
+O mapa textual em `## Mapa mental` é a fonte jurídica verificável; o PNG é um complemento visual. Apenas tópicos `completed` com sessões concluídas e mapa textual participam da geração. Sessões `not_started` ou `in_progress` nunca geram imagem.
+
+Para cada tópico recém-concluído:
+
+1. Executar `python3 <skill-dir>/scripts/prepare_visual_map.py <trail_dir> --topic <topic_id>`.
+2. Se `status` for `ready`, reutilizar o PNG em cache e não chamar geração.
+3. Se `status` for `missing` ou `invalid`, usar **REQUIRED SUB-SKILL: imagegen** em modo nativo com o `prompt` retornado.
+4. Inspecionar a imagem contra `algorithm_lines` e `alt_text`: fluxograma em português, paisagem 3:2 aproximada, composição Dashboard Moderno e rótulos jurídicos concisos e verbatim. Aceitar somente PNG legível e sem conteúdo inventado, marca-d’água ou texto ilegível. Repetir uma vez somente para corrigir erro concreto.
+5. Copiar o PNG aprovado para `expected_path`; nunca deixar asset referenciado apenas no diretório global de imagens geradas.
+6. Não usar fallback CLI, não solicitar `OPENAI_API_KEY` e não chamar serviço externo.
+7. Se a ferramenta nativa estiver indisponível ou a segunda imagem continuar incorreta, não salvar a imagem e executar o build com fallback determinístico.
+
+O utilitário retorna um `expected_path` relativo, como `assets/mapas/<topico-normalizado>-<hash-curto>/<source_hash>.png`. O `source_hash` inclui o tópico, a versão visual, a proporção 3:2 e o mapa textual agregado das sessões concluídas: mesma fonte reutiliza cache; alteração do conteúdo cria novo arquivo sem apagar caches anteriores.
+
+Preservar os marcadores algorítmicos no mapa textual para orientar a imagem e o fallback: `ENTRADA`, `SE`, `ENTÃO`, `SENÃO`, `RESULTADO` e `ALERTA`. O HTML autocontido incorpora PNG aprovado em Base64, mantém alternativa textual verificável e oferece ampliação; o PDF usa os mesmos bytes, preserva o algoritmo pesquisável e aplica o fluxo textual quando não houver imagem válida.
+
 ## Sem filesystem
 
 Aplicar a mesma sequência no chat, declarar que não houve persistência e não alegar atualização de trilha, progresso ou apostila.

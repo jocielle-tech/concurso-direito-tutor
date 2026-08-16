@@ -1,6 +1,6 @@
 ---
 name: concurso-direito-tutor
-description: Use when a user needs tutoring for Brazilian public-service law exams, including 20-question study sessions, organized study materials, interactive HTML or PDF apostilas, trail progress, mind maps, edital analysis, simulados, corrections, or discursivas.
+description: Use when a user needs tutoring for Brazilian public-service law exams, including 20-question study sessions, organized study materials, native algorithmic visual maps, interactive HTML or PDF apostilas, trail progress, mind maps, edital analysis, simulados, corrections, or discursivas.
 ---
 
 # Tutor de Concursos de Direito
@@ -13,6 +13,7 @@ Conduzir estudo jurídico para concurso com fontes oficiais, recuperação ativa
 2. Antes de iniciar, retomar ou alterar uma trilha, ler [references/trilha-e-apostila.md](references/trilha-e-apostila.md). Na retomada, executar `--check`; se stderr for exatamente `MIGRATION_REQUIRED`, informar o aluno e executar `--migrate` antes de continuar.
 3. Ao abrir uma sessão principal, anunciar: 20 questões por sessão, materiais organizados, progresso e apostila em Markdown, HTML interativo e PDF. Declarar que a sessão persistirá `question_target: 20` e que cada feedback terá `Tópico: <topic_id>`. Apresentar as 20 questões numeradas de 1 a 20 juntas, sem gabarito, e aguardar as respostas.
 4. Se o aluno pedir os arquivos, informar a fonte canônica em `modulos/.../topicos/<primeiro-topico>/sessoes/` e as saídas `painel/`, `materiais/`, `revisoes/` e `apostila/apostila.{md,html,pdf}`. Só corrigir após receber as 20 respostas. Se o aluno abandonar explicitamente as restantes, corrigir apenas as respondidas, manter `in_progress` e não elevar o progresso. No fechamento concluído, registrar os 20 feedbacks com `Tópico`, diagnóstico agregado e gerar todas as saídas.
+5. Ao fechar um tópico `completed`, ler a especificação visual preparada pelo utilitário. Se o status for `missing` ou `invalid`, usar obrigatoriamente a sub-skill nativa `imagegen`; não solicitar API key, CLI ou serviço externo. Inspecionar o resultado, salvar no `expected_path` e reconstruir as apostilas. Se a geração nativa não estiver disponível ou falhar após uma correção, concluir com o fallback determinístico. Seguir o fluxo completo em [references/trilha-e-apostila.md](references/trilha-e-apostila.md).
 
 ## Tutoria e atualidade
 
