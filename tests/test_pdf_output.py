@@ -1,4 +1,5 @@
 import io
+import re
 import subprocess
 import tempfile
 import unittest
@@ -6,6 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pypdf import PdfReader
+
+from scripts.trilha_pdf import render_pdf
+from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
+from tests.test_visual_maps import algorithm_session
+from tests.trilha_support import png_bytes
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +38,95 @@ class PdfOutputTests(unittest.TestCase):
     def run_build(self):
         return subprocess.run(
             ["python3", str(SCRIPT), str(self.trail)], text=True, capture_output=True
+        )
+
+    def ready_visual_fixture(self):
+        manifest = {
+            "title": "Trilha de Direito Constitucional",
+            "recalibrated": False,
+            "modules": [{
+                "id": "constitucional", "title": "Direito Constitucional", "topics": [{
+                    "id": "controle", "title": "Controle difuso", "weight": 1,
+                    "status": "completed", "sessions": ["s001"],
+                }],
+            }],
+            "sessions": [{
+                "id": "s001", "title": "Controle difuso", "date": "2026-08-10",
+                "status": "completed", "module_id": "constitucional", "topic_ids": ["controle"],
+            }],
+        }
+        session_files = {
+            "s001": algorithm_session("Controle difuso", (
+                "ENTRADA: existe caso concreto?",
+                "SE SIM: identificar a controvérsia constitucional.",
+                "ENTÃO: aplicar o controle difuso.",
+                "SENÃO: encerrar a análise.",
+                "RESULTADO: decisão fundamentada.",
+                "ALERTA: observar a reserva de plenário.",
+            )),
+        }
+        spec = build_visual_map_specs(manifest, session_files)["controle"]
+        return manifest, session_files, {
+            "controle": VisualMapAsset(spec, "ready", png_bytes(), None),
+        }
+
+    def missing_visual_fixture(self):
+        manifest, session_files, assets = self.ready_visual_fixture()
+        spec = assets["controle"].spec
+        return manifest, session_files, {
+            "controle": VisualMapAsset(spec, "missing", None, None),
+        }
+
+    @staticmethod
+    def pdf_text(pdf):
+        return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf)).pages)
+
+    def test_pdf_embeds_ready_visual_map_and_keeps_textual_algorithm(self):
+        manifest, session_files, assets = self.ready_visual_fixture()
+
+        pdf = render_pdf(manifest, session_files, assets)
+        reader = PdfReader(io.BytesIO(pdf))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        images = [
+            object_ref.get_object()
+            for page in reader.pages
+            for object_ref in (page.get("/Resources", {}).get("/XObject", {}) or {}).values()
+            if object_ref.get_object().get("/Subtype") == "/Image"
+        ]
+
+        self.assertTrue(images)
+        self.assertIn("ENTRADA: existe caso concreto?", text)
+        self.assertIn("Progresso global", text)
+        self.assertEqual(reader.metadata.title, manifest["title"])
+        self.assertIn("Página 1", text)
+        self.assertTrue(any("/Annots" in page for page in reader.pages))
+        self.assertTrue(reader.outline)
+        self.assertTrue(any(
+            re.search(r"Questão 1\s+Tópico: controle\s+Resposta: alternativa A", page.extract_text() or "")
+            for page in reader.pages
+        ))
+
+    def test_pdf_unavailable_or_absent_visual_map_uses_searchable_fallback(self):
+        manifest, session_files, assets = self.missing_visual_fixture()
+        spec = assets["controle"].spec
+
+        for visual_maps in (
+            assets,
+            {"controle": VisualMapAsset(spec, "invalid", None, "imagem inválida")},
+            None,
+        ):
+            with self.subTest(visual_maps=visual_maps is None and "absent" or visual_maps["controle"].status):
+                text = self.pdf_text(render_pdf(manifest, session_files, visual_maps))
+
+                self.assertIn("Mapa algorítmico", text)
+                self.assertIn("SE SIM", text)
+
+    def test_visual_pdf_is_byte_identical_across_two_builds(self):
+        manifest, session_files, assets = self.ready_visual_fixture()
+
+        self.assertEqual(
+            render_pdf(manifest, session_files, assets),
+            render_pdf(manifest, session_files, assets),
         )
 
     def test_build_generates_a_linked_pdf_study_booklet(self):

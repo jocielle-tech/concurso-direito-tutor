@@ -1,4 +1,6 @@
-"""Deterministic ReportLab renderer for a trail study booklet."""
+"""Deterministic ReportLab renderer for a polished trail study booklet."""
+
+from __future__ import annotations
 
 import io
 import re
@@ -14,6 +16,8 @@ MAP_COLOURS = {
 }
 MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 URL = re.compile(r"https?://[^\s<>()]+")
+SECTION = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+MAP_ITEM = re.compile(r"\s*[-*]\s+\[([^]]+)\]\s+(.+)")
 
 
 class PdfDependencyError(RuntimeError):
@@ -27,12 +31,25 @@ def load_reportlab():
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
-        from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.platypus import (
+            HRFlowable,
+            Image,
+            KeepTogether,
+            PageBreak,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
     except ModuleNotFoundError as exc:
         raise PdfDependencyError(
             "dependência PDF ausente; execute: python3 -m pip install -r requirements.txt"
         ) from exc
-    return colors, A4, getSampleStyleSheet, ParagraphStyle, mm, SimpleDocTemplate, Paragraph, Spacer, PageBreak, KeepTogether
+    return (
+        colors, A4, getSampleStyleSheet, ParagraphStyle, mm, SimpleDocTemplate,
+        Paragraph, Spacer, PageBreak, KeepTogether, Image, Table, TableStyle, HRFlowable,
+    )
 
 
 def _paragraph_markup(value):
@@ -71,12 +88,11 @@ def _anchor(name, label):
 
 
 def _session_sections(text):
-    headings = list(re.finditer(r"^##\s+(.+?)\s*$", text, re.MULTILINE))
-    sections = {}
-    for index, heading in enumerate(headings):
-        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
-        sections[heading.group(1)] = text[heading.end():end].strip()
-    return sections
+    headings = list(SECTION.finditer(text))
+    return {
+        heading.group(1): text[heading.end():headings[index + 1].start() if index + 1 < len(headings) else len(text)].strip()
+        for index, heading in enumerate(headings)
+    }
 
 
 def _question_groups(text):
@@ -84,50 +100,158 @@ def _question_groups(text):
     for index, heading in enumerate(headings):
         end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
         question = re.fullmatch(r"Questão\s+\d+", heading.group(1))
-        if not question:
+        if question:
+            lines = [line.strip() for line in text[heading.end():end].splitlines() if line.strip()]
+            yield question.group(0), lines
+
+
+def _trail_progress(manifest):
+    topics = [topic for module in manifest["modules"] for topic in module["topics"]]
+    total = sum(topic["weight"] for topic in topics)
+    complete = sum(topic["weight"] for topic in topics if topic["status"] == "completed")
+    return round(complete * 100 / total) if total else 0
+
+
+def _metric_table(metrics, Table, TableStyle, Paragraph, styles, colors, mm):
+    """Return a fixed-width, deterministic dashboard metric row for A4."""
+    cells = [
+        Paragraph(
+            f'<b>{_paragraph_markup(value)}</b><br/>{_paragraph_markup(label)}',
+            styles["MetricLabel"],
+        )
+        for label, value in metrics
+    ]
+    table = Table([cells], colWidths=[42 * mm] * len(cells), hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0EFFF")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#C7C4FF")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#D9D7FF")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    return table
+
+
+def _algorithm_lines_from_sessions(manifest, session_files, topic_id):
+    """Return completed-session map lines in manifest order for a single topic."""
+    lines = []
+    for session in manifest["sessions"]:
+        if session["status"] != "completed" or topic_id not in session["topic_ids"]:
             continue
-        lines = [line.strip() for line in text[heading.end():end].splitlines() if line.strip()]
-        yield question.group(0), lines
+        source = _session_sections(session_files[session["id"]]).get("Mapa mental", "")
+        lines.extend(line.strip() for line in source.splitlines() if line.strip())
+    return tuple(lines)
 
 
-def render_pdf(manifest, session_files):
-    """Return a stable PDF byte string for already-validated trail content."""
+def _map_line_style(line, ParagraphStyle, styles, colors, sequence):
+    match = MAP_ITEM.match(line)
+    category = match.group(1) if match else None
+    text = match.group(2) if match else line
+    color = MAP_COLOURS.get(category, "#64748B")
+    style = ParagraphStyle(
+        name=f"AlgorithmLine{sequence}", parent=styles["AlgorithmText"],
+        leftIndent=6, borderPadding=5, borderWidth=0.8, borderColor=colors.HexColor(color),
+    )
+    return text, style
+
+
+def _algorithm_fallback_flowables(lines, Paragraph, ParagraphStyle, styles, colors, sequence_start=0):
+    flowables = [Paragraph("Fluxo textual verificável", styles["FallbackCaption"])]
+    for offset, line in enumerate(lines):
+        text, style = _map_line_style(line, ParagraphStyle, styles, colors, sequence_start + offset)
+        flowables.append(Paragraph(_paragraph_markup(text), style))
+    if not lines:
+        flowables.append(Paragraph("Mapa algorítmico indisponível.", styles["AlgorithmText"]))
+    return flowables
+
+
+def _map_flowables(topic, asset, lines, Image, Paragraph, ParagraphStyle, KeepTogether, styles, colors, max_width, max_height):
+    """Render a proportional PNG followed by authoritative searchable algorithm text."""
+    flowables = [Paragraph("Mapa algorítmico", styles["SectionLabel"])]
+    has_ready_image = bool(asset and asset.status == "ready" and asset.png_bytes)
+    if has_ready_image:
+        image = Image(io.BytesIO(asset.png_bytes))
+        image._restrictSize(max_width, max_height)
+        flowables.append(KeepTogether([image]))
+    else:
+        flowables.extend(_algorithm_fallback_flowables(lines, Paragraph, ParagraphStyle, styles, colors, len(flowables)))
+    if has_ready_image:
+        flowables.append(Paragraph("Fluxo textual verificável", styles["FallbackCaption"]))
+        for offset, line in enumerate(lines):
+            text, style = _map_line_style(line, ParagraphStyle, styles, colors, 1000 + offset)
+            flowables.append(Paragraph(_paragraph_markup(text), style))
+    return flowables
+
+
+def render_pdf(manifest, session_files, visual_maps=None):
+    """Return a stable A4 PDF byte string for already-validated trail content."""
     try:
         (
-            colors, A4, get_sample_styles, ParagraphStyle, mm,
-            SimpleDocTemplate, Paragraph, Spacer, PageBreak, KeepTogether,
+            colors, A4, get_sample_styles, ParagraphStyle, mm, SimpleDocTemplate,
+            Paragraph, Spacer, PageBreak, KeepTogether, Image, Table, TableStyle, HRFlowable,
         ) = load_reportlab()
     except ModuleNotFoundError as exc:
         raise PdfDependencyError(
             "dependência PDF ausente; execute: python3 -m pip install -r requirements.txt"
         ) from exc
+    visual_maps = visual_maps or {}
 
     styles = get_sample_styles()
     styles.add(ParagraphStyle(
-        name="TrailTitle", parent=styles["Title"], fontName="Helvetica-Bold",
-        fontSize=26, leading=32, textColor=colors.HexColor("#111827"), spaceAfter=12,
+        name="CoverTitle", parent=styles["Title"], fontName="Helvetica-Bold",
+        fontSize=27, leading=32, textColor=colors.white, spaceAfter=10,
+    ))
+    styles.add(ParagraphStyle(
+        name="CoverSubtitle", parent=styles["BodyText"], fontName="Helvetica",
+        fontSize=10.5, leading=15, textColor=colors.HexColor("#E0E7FF"), spaceAfter=6,
+    ))
+    styles.add(ParagraphStyle(
+        name="Eyebrow", parent=styles["BodyText"], fontName="Helvetica-Bold",
+        fontSize=8, leading=10, textColor=colors.HexColor("#C7D2FE"), spaceAfter=8,
+    ))
+    styles.add(ParagraphStyle(
+        name="MetricLabel", parent=styles["BodyText"], fontName="Helvetica",
+        fontSize=7.6, leading=10, textColor=colors.HexColor("#475467"), alignment=1,
     ))
     styles.add(ParagraphStyle(
         name="TrailHeading", parent=styles["Heading1"], fontName="Helvetica-Bold",
-        fontSize=17, leading=22, textColor=colors.HexColor("#1D4ED8"), spaceBefore=8, spaceAfter=8,
+        fontSize=18, leading=23, textColor=colors.HexColor("#312E81"), spaceBefore=8, spaceAfter=8,
     ))
     styles.add(ParagraphStyle(
-        name="TrailSubheading", parent=styles["Heading2"], fontName="Helvetica-Bold",
-        fontSize=13, leading=17, textColor=colors.HexColor("#111827"), spaceBefore=8, spaceAfter=5,
+        name="TopicHeading", parent=styles["Heading2"], fontName="Helvetica-Bold",
+        fontSize=14, leading=18, textColor=colors.HexColor("#0F172A"), spaceBefore=13, spaceAfter=6,
     ))
     styles.add(ParagraphStyle(
-        name="TrailBody", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.5,
-        leading=13, spaceAfter=4,
+        name="SessionHeading", parent=styles["Heading3"], fontName="Helvetica-Bold",
+        fontSize=11.2, leading=14, textColor=colors.HexColor("#3730A3"), spaceBefore=10, spaceAfter=4,
     ))
     styles.add(ParagraphStyle(
-        name="TrailQuestion", parent=styles["Heading3"], fontName="Helvetica-Bold",
-        fontSize=11, leading=14, textColor=colors.HexColor("#7C3AED"), spaceBefore=7, spaceAfter=3,
+        name="TrailBody", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.2,
+        leading=13, textColor=colors.HexColor("#1F2937"), spaceAfter=4,
     ))
     styles.add(ParagraphStyle(
-        name="TrailMap", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.5,
-        leading=13, leftIndent=7, borderPadding=6, spaceAfter=5,
+        name="SectionLabel", parent=styles["BodyText"], fontName="Helvetica-Bold", fontSize=10.4,
+        leading=13, textColor=colors.HexColor("#1D4ED8"), spaceBefore=8, spaceAfter=5,
     ))
-
+    styles.add(ParagraphStyle(
+        name="QuestionTitle", parent=styles["Heading3"], fontName="Helvetica-Bold", fontSize=10.5,
+        leading=13, textColor=colors.HexColor("#6D28D9"), spaceBefore=8, spaceAfter=2,
+    ))
+    styles.add(ParagraphStyle(
+        name="FeedbackText", parent=styles["BodyText"], fontName="Helvetica", fontSize=8.8,
+        leading=12.2, textColor=colors.HexColor("#334155"), spaceAfter=0,
+    ))
+    styles.add(ParagraphStyle(
+        name="AlgorithmText", parent=styles["BodyText"], fontName="Helvetica", fontSize=8.8,
+        leading=12, textColor=colors.HexColor("#1E293B"), spaceAfter=3,
+    ))
+    styles.add(ParagraphStyle(
+        name="FallbackCaption", parent=styles["BodyText"], fontName="Helvetica-Oblique", fontSize=8,
+        leading=10, textColor=colors.HexColor("#64748B"), spaceAfter=4,
+    ))
     class StableBooklet(SimpleDocTemplate):
         def afterFlowable(self, flowable):
             bookmark = getattr(flowable, "bookmark_name", None)
@@ -143,15 +267,50 @@ def render_pdf(manifest, session_files):
             item.outline_level = level
         return item
 
-    def on_page(canvas, document):
+    topic_count = sum(len(module["topics"]) for module in manifest["modules"])
+    completed_topics = sum(
+        topic["status"] == "completed" for module in manifest["modules"] for topic in module["topics"]
+    )
+    completed_sessions = sum(session["status"] == "completed" for session in manifest["sessions"])
+    question_count = sum(
+        sum(1 for _ in _question_groups(_session_sections(session_files[session["id"]]).get("Questões e feedback", "")))
+        for session in manifest["sessions"] if session["status"] == "completed"
+    )
+    metrics = (
+        ("Progresso global", f"{_trail_progress(manifest)}%"),
+        ("Tópicos concluídos", f"{completed_topics}/{topic_count}"),
+        ("Sessões concluídas", f"{completed_sessions}/{len(manifest['sessions'])}"),
+        ("Questões corrigidas", str(question_count)),
+    )
+
+    def on_first_page(canvas, document):
         canvas.saveState()
         width, height = A4
-        canvas.setStrokeColor(colors.HexColor("#D1D5DB"))
-        canvas.line(document.leftMargin, height - 13 * mm, width - document.rightMargin, height - 13 * mm)
+        canvas.setFillColor(colors.HexColor("#312E81"))
+        canvas.rect(0, 0, width, height, fill=1, stroke=0)
+        canvas.setFillColor(colors.HexColor("#2563EB"))
+        canvas.rect(0, height - 44 * mm, width, 44 * mm, fill=1, stroke=0)
+        canvas.setFillColor(colors.HexColor("#7C3AED"))
+        canvas.rect(0, 0, width, 18 * mm, fill=1, stroke=0)
+        canvas.setFillColor(colors.HexColor("#E0E7FF"))
         canvas.setFont("Helvetica", 8)
-        canvas.setFillColor(colors.HexColor("#4B5563"))
-        canvas.drawString(document.leftMargin, height - 10 * mm, manifest["title"])
         canvas.drawRightString(width - document.rightMargin, 10 * mm, f"Página {canvas.getPageNumber()}")
+        canvas.restoreState()
+
+    def on_later_page(canvas, document):
+        canvas.saveState()
+        width, height = A4
+        canvas.setStrokeColor(colors.HexColor("#C7D2FE"))
+        canvas.setLineWidth(1)
+        canvas.line(document.leftMargin, height - 13 * mm, width - document.rightMargin, height - 13 * mm)
+        canvas.setStrokeColor(colors.HexColor("#38BDF8"))
+        canvas.line(document.leftMargin, height - 14.5 * mm, document.leftMargin + 36 * mm, height - 14.5 * mm)
+        canvas.setFont("Helvetica", 7.8)
+        canvas.setFillColor(colors.HexColor("#475467"))
+        canvas.drawString(document.leftMargin, height - 10 * mm, manifest["title"])
+        canvas.setFillColor(colors.HexColor("#312E81"))
+        canvas.roundRect(width - document.rightMargin - 25 * mm, 7 * mm, 25 * mm, 8 * mm, 4 * mm, fill=0, stroke=1)
+        canvas.drawCentredString(width - document.rightMargin - 12.5 * mm, 10 * mm, f"Página {canvas.getPageNumber()}")
         canvas.restoreState()
 
     stream = io.BytesIO()
@@ -160,21 +319,24 @@ def render_pdf(manifest, session_files):
         leftMargin=18 * mm, rightMargin=18 * mm, topMargin=20 * mm, bottomMargin=18 * mm,
     )
     story = [
-        Spacer(1, 42 * mm),
-        Paragraph(_paragraph_markup(manifest["title"]), styles["TrailTitle"]),
-        Paragraph("Apostila de estudo - material gerado automaticamente", styles["TrailBody"]),
-        Spacer(1, 10 * mm),
-        Paragraph("Índice", styles["TrailHeading"]),
+        Spacer(1, 39 * mm),
+        Paragraph("APOSTILA DE ESTUDO", styles["Eyebrow"]),
+        Paragraph(_paragraph_markup(manifest["title"]), styles["CoverTitle"]),
+        Paragraph("Trilha organizada, revisável e pronta para estudo dirigido.", styles["CoverSubtitle"]),
+        Spacer(1, 15 * mm),
+        _metric_table(metrics, Table, TableStyle, Paragraph, styles, colors, mm),
+        Spacer(1, 16 * mm),
+        Paragraph("Índice", styles["CoverSubtitle"]),
     ]
     for module in manifest["modules"]:
         story.append(Paragraph(
             f'<link href="#module-{escape_markup(module["id"], quote=True)}">{_paragraph_markup(module["title"])}</link>',
-            styles["TrailBody"],
+            styles["CoverSubtitle"],
         ))
         for topic in module["topics"]:
             story.append(Paragraph(
                 f'&nbsp;&nbsp;&nbsp;<link href="#topic-{escape_markup(topic["id"], quote=True)}">{_paragraph_markup(topic["title"])}</link>',
-                styles["TrailBody"],
+                styles["CoverSubtitle"],
             ))
     story.append(PageBreak())
 
@@ -182,53 +344,62 @@ def render_pdf(manifest, session_files):
         if module_index:
             story.append(PageBreak())
         story.append(heading(module["title"], "TrailHeading", f"module-{module['id']}", 0))
+        story.append(HRFlowable(width="100%", thickness=0.7, color=colors.HexColor("#C7D2FE"), spaceAfter=5))
         for topic in module["topics"]:
-            story.append(heading(topic["title"], "TrailSubheading", f"topic-{topic['id']}", 1))
+            story.append(heading(topic["title"], "TopicHeading", f"topic-{topic['id']}", 1))
+            asset = visual_maps.get(topic["id"])
+            lines = tuple(asset.spec.algorithm_lines) if asset else _algorithm_lines_from_sessions(
+                manifest, session_files, topic["id"]
+            )
+            if lines or asset or topic["status"] == "completed":
+                story.extend(_map_flowables(
+                    topic, asset, lines, Image, Paragraph, ParagraphStyle, KeepTogether, styles, colors,
+                    document.width, 108 * mm,
+                ))
             for session in (
                 item for item in manifest["sessions"]
-                if item["module_id"] == module["id"] and item["topic_ids"][0] == topic["id"]
+                if item["module_id"] == module["id"] and topic["id"] in item["topic_ids"]
             ):
-                session_anchor = f"session-{session['id']}"
-                story.append(heading(session["title"], "TrailSubheading", session_anchor, 2))
+                story.append(heading(session["title"], "SessionHeading", f"session-{session['id']}", 2))
                 sections = _session_sections(session_files[session["id"]])
                 for section_name in ("Conteúdo principal", "Resumo estratégico"):
                     section = sections.get(section_name)
                     if section:
-                        story.append(Paragraph(_paragraph_markup(section_name), styles["TrailQuestion"]))
+                        story.append(Paragraph(_paragraph_markup(section_name), styles["SectionLabel"]))
                         for line in section.splitlines():
                             if line.strip():
                                 story.append(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]))
-                mind_map = sections.get("Mapa mental")
-                if mind_map:
-                    story.append(Paragraph("Mapa mental", styles["TrailQuestion"]))
-                    for line in mind_map.splitlines():
-                        match = re.match(r"\s*[-*]\s+\[([^]]+)\]\s+(.+)", line)
-                        if not match:
-                            continue
-                        category, content = match.groups()
-                        map_style = ParagraphStyle(
-                            name=f"TrailMap{len(story)}", parent=styles["TrailMap"],
-                            borderColor=colors.HexColor(MAP_COLOURS.get(category, "#6B7280")), borderWidth=1,
-                        )
-                        story.append(Paragraph(_paragraph_markup(content), map_style))
                 questions = sections.get("Questões e feedback", "")
                 if questions:
-                    story.append(Paragraph("Questões e feedback", styles["TrailQuestion"]))
+                    story.append(Paragraph("Questões e feedback", styles["SectionLabel"]))
                     for question, lines in _question_groups(questions):
                         first_lines, remaining = lines[:2], lines[2:]
-                        block = [Paragraph(_paragraph_markup(question), styles["TrailQuestion"])]
-                        block.extend(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]) for line in first_lines)
-                        story.append(KeepTogether(block))
-                        story.extend(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]) for line in remaining)
+                        intro = [Paragraph(_paragraph_markup(question), styles["QuestionTitle"])]
+                        intro.extend(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]) for line in first_lines)
+                        story.append(KeepTogether(intro))
+                        if remaining:
+                            feedback = "<br/>".join(_paragraph_markup(line.lstrip("-* ").strip()) for line in remaining)
+                            card = Table([[Paragraph(feedback, styles["FeedbackText"])]], colWidths=[document.width])
+                            card.setStyle(TableStyle([
+                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+                                ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#DDD6FE")),
+                                ("LINEBEFORE", (0, 0), (0, -1), 2.5, colors.HexColor("#8B5CF6")),
+                                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                            ]))
+                            story.append(card)
+                            story.append(Spacer(1, 2 * mm))
                     diagnosis = re.search(r"^###\s+Diagnóstico agregado\s*$([\s\S]*)", questions, re.MULTILINE)
                     if diagnosis:
-                        story.append(Paragraph("Diagnóstico agregado", styles["TrailQuestion"]))
+                        story.append(Paragraph("Diagnóstico agregado", styles["SectionLabel"]))
                         for line in diagnosis.group(1).splitlines():
                             if line.strip():
                                 story.append(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]))
                 sources = sections.get("Fontes")
                 if sources:
-                    story.append(Paragraph("Fontes", styles["TrailQuestion"]))
+                    story.append(Paragraph("Fontes", styles["SectionLabel"]))
                     for line in sources.splitlines():
                         if line.strip():
                             story.append(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]))
@@ -239,5 +410,5 @@ def render_pdf(manifest, session_files):
         kwargs["pageCompression"] = 1
         return Canvas(filename, **kwargs)
 
-    document.build(story, onFirstPage=on_page, onLaterPages=on_page, canvasmaker=stable_canvas)
+    document.build(story, onFirstPage=on_first_page, onLaterPages=on_later_page, canvasmaker=stable_canvas)
     return stream.getvalue()
