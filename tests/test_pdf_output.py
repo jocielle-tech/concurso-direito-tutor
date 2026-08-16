@@ -129,6 +129,53 @@ class PdfOutputTests(unittest.TestCase):
             render_pdf(manifest, session_files, assets),
         )
 
+    def test_multi_topic_session_is_detailed_only_under_its_canonical_topic(self):
+        manifest, session_files, _assets = self.ready_visual_fixture()
+        session = manifest["sessions"][0]
+        session["title"] = "Sessão integrada"
+        session["topic_ids"] = ["controle", "direitos"]
+        manifest["modules"][0]["topics"].append({
+            "id": "direitos", "title": "Direitos fundamentais", "weight": 1,
+            "status": "completed", "sessions": ["s001"],
+        })
+
+        text = self.pdf_text(render_pdf(manifest, session_files))
+
+        self.assertEqual(text.count("Sessão integrada"), 1)
+        self.assertEqual(len(re.findall(r"(?m)^Questão 1$", text)), 1)
+        self.assertIn("Direitos fundamentais", text)
+
+    def test_long_index_has_its_own_paginated_readable_section(self):
+        topics = [
+            {"id": f"topico-{number}", "title": f"Tópico {number:02}", "weight": 1,
+             "status": "not_started", "sessions": []}
+            for number in range(1, 81)
+        ]
+        manifest = {
+            "title": "Trilha de índice longo", "recalibrated": False,
+            "modules": [{"id": "longo", "title": "Módulo longo", "topics": topics}],
+            "sessions": [],
+        }
+
+        reader = PdfReader(io.BytesIO(render_pdf(manifest, {})))
+        index_text = "\n".join(page.extract_text() or "" for page in reader.pages[1:4])
+
+        self.assertGreaterEqual(len(reader.pages), 4)
+        self.assertIn("Índice da trilha", index_text)
+        self.assertIn("Tópico 80", index_text)
+        self.assertTrue(any("/Annots" in page for page in reader.pages[1:4]))
+
+    def test_undecodable_ready_image_degrades_to_textual_fallback(self):
+        manifest, session_files, assets = self.ready_visual_fixture()
+        spec = assets["controle"].spec
+
+        text = self.pdf_text(render_pdf(manifest, session_files, {
+            "controle": VisualMapAsset(spec, "ready", b"not-a-png", None),
+        }))
+
+        self.assertIn("Mapa algorítmico", text)
+        self.assertIn("ENTRADA: existe caso concreto?", text)
+
     def test_build_generates_a_linked_pdf_study_booklet(self):
         result = self.run_build()
 

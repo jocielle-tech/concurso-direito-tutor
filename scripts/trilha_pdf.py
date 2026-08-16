@@ -173,10 +173,16 @@ def _map_flowables(topic, asset, lines, Image, Paragraph, ParagraphStyle, KeepTo
     flowables = [Paragraph("Mapa algorítmico", styles["SectionLabel"])]
     has_ready_image = bool(asset and asset.status == "ready" and asset.png_bytes)
     if has_ready_image:
-        image = Image(io.BytesIO(asset.png_bytes))
-        image._restrictSize(max_width, max_height)
-        flowables.append(KeepTogether([image]))
-    else:
+        try:
+            # Eager decoding keeps malformed cache entries local to this map instead
+            # of allowing ReportLab to fail later while building the whole document.
+            image = Image(io.BytesIO(asset.png_bytes), lazy=0)
+            image._restrictSize(max_width, max_height)
+        except (OSError, TypeError, ValueError):
+            has_ready_image = False
+        else:
+            flowables.append(KeepTogether([image]))
+    if not has_ready_image:
         flowables.extend(_algorithm_fallback_flowables(lines, Paragraph, ParagraphStyle, styles, colors, len(flowables)))
     if has_ready_image:
         flowables.append(Paragraph("Fluxo textual verificável", styles["FallbackCaption"]))
@@ -252,6 +258,18 @@ def render_pdf(manifest, session_files, visual_maps=None):
         name="FallbackCaption", parent=styles["BodyText"], fontName="Helvetica-Oblique", fontSize=8,
         leading=10, textColor=colors.HexColor("#64748B"), spaceAfter=4,
     ))
+    styles.add(ParagraphStyle(
+        name="IndexHeading", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=19,
+        leading=24, textColor=colors.HexColor("#312E81"), spaceAfter=10,
+    ))
+    styles.add(ParagraphStyle(
+        name="IndexModule", parent=styles["BodyText"], fontName="Helvetica-Bold", fontSize=10,
+        leading=14, textColor=colors.HexColor("#1E293B"), spaceBefore=5, spaceAfter=2, keepWithNext=1,
+    ))
+    styles.add(ParagraphStyle(
+        name="IndexTopic", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.3,
+        leading=13, textColor=colors.HexColor("#1E3A8A"), leftIndent=8, spaceAfter=1,
+    ))
     class StableBooklet(SimpleDocTemplate):
         def afterFlowable(self, flowable):
             bookmark = getattr(flowable, "bookmark_name", None)
@@ -325,18 +343,18 @@ def render_pdf(manifest, session_files, visual_maps=None):
         Paragraph("Trilha organizada, revisável e pronta para estudo dirigido.", styles["CoverSubtitle"]),
         Spacer(1, 15 * mm),
         _metric_table(metrics, Table, TableStyle, Paragraph, styles, colors, mm),
-        Spacer(1, 16 * mm),
-        Paragraph("Índice", styles["CoverSubtitle"]),
+        PageBreak(),
+        Paragraph("Índice da trilha", styles["IndexHeading"]),
     ]
     for module in manifest["modules"]:
         story.append(Paragraph(
             f'<link href="#module-{escape_markup(module["id"], quote=True)}">{_paragraph_markup(module["title"])}</link>',
-            styles["CoverSubtitle"],
+            styles["IndexModule"],
         ))
         for topic in module["topics"]:
             story.append(Paragraph(
                 f'&nbsp;&nbsp;&nbsp;<link href="#topic-{escape_markup(topic["id"], quote=True)}">{_paragraph_markup(topic["title"])}</link>',
-                styles["CoverSubtitle"],
+                styles["IndexTopic"],
             ))
     story.append(PageBreak())
 
@@ -358,7 +376,7 @@ def render_pdf(manifest, session_files, visual_maps=None):
                 ))
             for session in (
                 item for item in manifest["sessions"]
-                if item["module_id"] == module["id"] and topic["id"] in item["topic_ids"]
+                if item["module_id"] == module["id"] and item["topic_ids"][0] == topic["id"]
             ):
                 story.append(heading(session["title"], "SessionHeading", f"session-{session['id']}", 2))
                 sections = _session_sections(session_files[session["id"]])
