@@ -98,6 +98,14 @@ class HybridOutputTests(unittest.TestCase):
             ["python3", str(SCRIPT), str(self.trail)], text=True, capture_output=True
         )
 
+    def tree_snapshot(self):
+        return {
+            path.relative_to(self.trail).as_posix(): (
+                "directory" if path.is_dir() else path.read_bytes()
+            )
+            for path in self.trail.rglob("*")
+        }
+
     def visual_map_target(self):
         manifest, session_files = load_and_validate(self.trail)
         spec = build_visual_map_specs(manifest, session_files)["controle"]
@@ -182,6 +190,43 @@ class HybridOutputTests(unittest.TestCase):
         }
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(after, before)
+
+    def test_check_without_visual_cache_leaves_the_complete_tree_unchanged(self):
+        self.assertFalse((self.trail / "assets").exists())
+        before = self.tree_snapshot()
+
+        result = subprocess.run(
+            ["python3", str(SCRIPT), "--check", str(self.trail)], text=True, capture_output=True
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.tree_snapshot(), before)
+        self.assertFalse((self.trail / "assets").exists())
+
+    def test_check_never_imports_reportlab_in_a_clean_process(self):
+        guard = """
+import builtins
+import sys
+
+original_import = builtins.__import__
+def guarded_import(name, *args, **kwargs):
+    if name == 'reportlab' or name.startswith('reportlab.'):
+        raise AssertionError('reportlab importado durante --check')
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+from scripts.build_trilha import main
+raise SystemExit(main(['--check', sys.argv[1]]))
+"""
+
+        result = subprocess.run(
+            ["python3", "-B", "-c", guard, str(self.trail)],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_check_loads_visual_cache_without_rendering_or_publishing(self):
         with (
@@ -441,6 +486,32 @@ class HybridOutputTests(unittest.TestCase):
             publish_bundle(self.trail, {target.relative_to(self.trail): b"derived image"})
 
         self.assertFalse(target.exists())
+
+    def test_publish_bundle_rejects_normalized_visual_map_source_paths(self):
+        from scripts.trilha_outputs import publish_bundle
+
+        variants = (
+            ("assets/mapas/controle-cache/mapa-1.png", "mapa-1.png"),
+            ("temporario/../assets/mapas/controle-cache/mapa-2.png", "mapa-2.png"),
+            ("./assets/mapas/controle-cache/mapa-3.png", "mapa-3.png"),
+            ("assets/outro/../mapas/controle-cache/mapa-4.png", "mapa-4.png"),
+        )
+        for relative, filename in variants:
+            with self.subTest(relative=relative):
+                target = self.trail / "assets/mapas/controle-cache" / filename
+                with self.assertRaisesRegex(ValueError, "fonte"):
+                    publish_bundle(self.trail, {Path(relative): b"derived image"})
+                self.assertFalse(target.exists())
+
+    def test_publish_bundle_still_rejects_paths_that_escape_the_trail(self):
+        from scripts.trilha_outputs import publish_bundle
+
+        escaped = self.trail.parent / "outside-derived.md"
+
+        with self.assertRaisesRegex(ValueError, "contido"):
+            publish_bundle(self.trail, {Path("../outside-derived.md"): b"derived output"})
+
+        self.assertFalse(escaped.exists())
 
     def test_secondary_topic_links_to_the_single_canonical_session_source(self):
         manifest = json.loads((self.trail / "trilha.json").read_text(encoding="utf-8"))

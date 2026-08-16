@@ -243,8 +243,13 @@ def _target_path(trail, relative):
     return target
 
 
-def _is_visual_map_source_path(relative):
-    return Path(relative).parts[:2] == ("assets", "mapas")
+def _is_visual_map_source_target(trail, target):
+    source_root = (Path(trail).resolve() / "assets" / "mapas").resolve()
+    try:
+        Path(target).relative_to(source_root)
+    except ValueError:
+        return False
+    return True
 
 
 def publish_bundle(trail, outputs, replace_file=lambda source, target: source.replace(target)):
@@ -252,10 +257,11 @@ def publish_bundle(trail, outputs, replace_file=lambda source, target: source.re
     prepared, previous = {}, {}
     trail = Path(trail)
     try:
-        if any(_is_visual_map_source_path(relative) for relative in outputs):
+        targets = {relative: _target_path(trail, relative) for relative in outputs}
+        if any(_is_visual_map_source_target(trail, target) for target in targets.values()):
             raise ValueError("assets/mapas contém imagens-fonte e não pode ser publicado como derivado")
         for relative, content in outputs.items():
-            target = _target_path(trail, relative)
+            target = targets[relative]
             target.parent.mkdir(parents=True, exist_ok=True)
             previous[target] = target.read_bytes() if target.exists() else None
             handle = tempfile.NamedTemporaryFile(dir=target.parent, delete=False)
