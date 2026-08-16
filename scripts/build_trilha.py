@@ -2,7 +2,6 @@
 """Validate a trail manifest and deterministically render its study handout."""
 
 import argparse
-import html
 import json
 import re
 import sys
@@ -11,13 +10,15 @@ from datetime import datetime
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 
 try:
+    from scripts.trilha_html import html_document
     from scripts.trilha_outputs import build_output_bundle, migration_session_relative_path, publish_bundle
     from scripts.trilha_migration import is_legacy_trail, migrate_legacy_trail
     from scripts.trilha_pdf import PdfDependencyError, render_pdf
 except ModuleNotFoundError:  # Direct ``python scripts/build_trilha.py`` execution.
+    from trilha_html import html_document
     from trilha_outputs import build_output_bundle, migration_session_relative_path, publish_bundle
     from trilha_migration import is_legacy_trail, migrate_legacy_trail
     from trilha_pdf import PdfDependencyError, render_pdf
@@ -375,230 +376,6 @@ def markdown_document(manifest, session_files):
                 session_files[session["id"]].rstrip(), "",
             ])
     return "\n".join(lines).rstrip() + "\n"
-
-
-def safe_inline(text, local_fragments=()):
-    parts = []
-    position = 0
-    for match in LINK.finditer(text):
-        parts.append(html.escape(text[position:match.start()], quote=True))
-        label, url = match.group(1), match.group(2).strip()
-        scheme = urlparse(url).scheme.lower()
-        if ((scheme and scheme not in {"http", "https", "mailto"})
-                or (url.startswith("#") and url[1:] not in local_fragments)):
-            parts.append(html.escape(label, quote=True))
-        else:
-            parts.append(
-                f'<a href="{html.escape(url, quote=True)}">'
-                f"{html.escape(label, quote=True)}</a>"
-            )
-        position = match.end()
-    parts.append(html.escape(text[position:], quote=True))
-    return "".join(parts)
-
-
-def html_map(lines, local_fragments=()):
-    blocks = ['<ul class="mind-map">']
-    current_level = 0
-    for line in lines:
-        match = MAP_ITEM.match(line)
-        if not match:
-            continue
-        level = len(match.group(1).expandtabs(2)) // 2 + 1
-        category, content = match.group(2), line[match.end(2) + 2:].strip()
-        label, color = MAP_CATEGORIES[category]
-        if current_level == 0:
-            current_level = level
-        elif level > current_level:
-            while current_level < level:
-                current_level += 1
-                blocks.append(f'<ul class="map-level-{current_level}">')
-        elif level == current_level:
-            blocks.append("</li>")
-        else:
-            while current_level > level:
-                blocks.append("</li></ul>")
-                current_level -= 1
-            blocks.append("</li>")
-        blocks.append(
-            f'<li class="map-item map-level-{level}" style="border-color:{color}">'
-            f"<strong>{label}:</strong> {safe_inline(content, local_fragments)}"
-        )
-    while current_level > 1:
-        blocks.append("</li></ul>")
-        current_level -= 1
-    if current_level:
-        blocks.append("</li>")
-    blocks.append("</ul>")
-    return "\n".join(blocks)
-
-
-def html_session(text, session_anchor, local_fragments):
-    blocks = []
-    lines = text.splitlines()
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        if line.startswith("# "):
-            blocks.append(f'<h3 id="{html.escape(session_anchor, quote=True)}">{safe_inline(line[2:], local_fragments)}</h3>')
-        elif line.startswith("## "):
-            blocks.append(f"<h4>{safe_inline(line[3:], local_fragments)}</h4>")
-            if line[3:] == "Mapa mental":
-                index += 1
-                map_lines = []
-                while index < len(lines) and not lines[index].startswith(("# ", "## ", "### ")):
-                    if lines[index].strip():
-                        map_lines.append(lines[index])
-                    index += 1
-                if map_lines and map_validation_error(map_lines) is None:
-                    blocks.append(html_map(map_lines, local_fragments))
-                else:
-                    blocks.extend(
-                        f"<p>{safe_inline(map_line.strip(), local_fragments)}</p>"
-                        for map_line in map_lines
-                    )
-                continue
-        elif line.startswith("### "):
-            blocks.append(f"<h5>{safe_inline(line[4:], local_fragments)}</h5>")
-        elif line.strip().startswith(("- ", "* ")):
-            item = line.strip()[2:]
-            blocks.append(f"<p>• {safe_inline(item, local_fragments)}</p>")
-        elif line.strip():
-            blocks.append(f"<p>{safe_inline(line.strip(), local_fragments)}</p>")
-        index += 1
-    return "\n".join(blocks)
-
-
-def html_document(manifest, session_files):
-    overall = progress(all_topics(manifest))
-    local_fragments = {
-        *(anchor_id("modulo", module["id"]) for module in manifest["modules"]),
-        *(anchor_id("topico", topic["id"])
-          for module in manifest["modules"] for topic in module["topics"]),
-        *(anchor_id("sessao", session["id"]) for session in manifest["sessions"]),
-    }
-    navigation_html = "".join(
-        f'<li><a class="module-label" href="#{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</a><ul>' + "".join(
-            f'<li><a href="#{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
-            f'data-topic-link="{html.escape(topic["id"], quote=True)}">{html.escape(topic["title"])}</a></li>'
-            for topic in module["topics"]
-        ) + "</ul><ul>" + "".join(
-            f'<li><a href="#{html.escape(anchor_id("sessao", session["id"]), quote=True)}">{html.escape(session["title"])}</a> ({html.escape(session["date"])})</li>'
-            for session in manifest["sessions"] if session["module_id"] == module["id"]
-        ) + "</ul></li>"
-        for module in manifest["modules"]
-    )
-    module_progress = "".join(
-        f"<li>{html.escape(module['title'])}: {progress(module['topics'])}%</li>"
-        for module in manifest["modules"]
-    )
-    legend = "".join(
-        f'<li><span style="color:{color}">{label} ({color})</span></li>'
-        for label, color in MAP_CATEGORIES.values()
-    )
-    content_html = "\n".join(
-        f'<section aria-labelledby="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">'
-        f'<h2 id="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</h2>'
-        + "\n".join(
-            f'<section id="{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
-            f'data-topic-section="{html.escape(topic["id"], quote=True)}" '
-            f'aria-label="{html.escape(topic["title"], quote=True)}">'
-            f'<h3>{html.escape(topic["title"])}</h3>'
-            + "\n".join(
-                html_session(
-                    session_files[session["id"]],
-                    anchor_id("sessao", session["id"]),
-                    local_fragments,
-                )
-                for session in manifest["sessions"]
-                if session["module_id"] == module["id"] and session["topic_ids"][0] == topic["id"]
-            )
-            + "\n".join(
-                f'<p class="shared-session">Sessão compartilhada: <a href="#{html.escape(anchor_id("sessao", session["id"]), quote=True)}">{html.escape(session["title"])}</a></p>'
-                for session in manifest["sessions"]
-                if (session["module_id"] == module["id"] and topic["id"] in session["topic_ids"]
-                    and session["topic_ids"][0] != topic["id"])
-            )
-            + "</section>"
-            for topic in module["topics"]
-        )
-        + "</section>"
-        for module in manifest["modules"]
-    )
-    recalibrated = "<p><strong>Trilha recalibrada</strong></p>" if manifest["recalibrated"] and manifest["source"] == "edital" else ""
-    return f'''<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><title>{html.escape(manifest['title'])}</title>
-<style>
-html {{ scroll-behavior: smooth; }}
-body {{ font-family: system-ui, sans-serif; color: #111827; margin: 0; line-height: 1.5; }}
-#trail-layout {{ display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
-#trail-sidebar {{ position: sticky; top: 1rem; align-self: start; max-height: calc(100vh - 2rem); overflow: auto; padding: 1rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; }}
-#trail-sidebar ul {{ padding-left: 1rem; }} #trail-sidebar a {{ color: #1d4ed8; }}
-.module-label {{ display: block; font-weight: 700; margin-top: .5rem; }}
-[data-topic-link].is-active {{ color: #111827; font-weight: 700; }} [data-topic-link].is-active::after {{ content: " — tópico atual"; }}
-#sidebar-toggle {{ display: none; }}
-#trail-content {{ min-width: 0; }} [data-topic-section] {{ scroll-margin-top: 1rem; }}
-a:focus-visible, button:focus-visible {{ outline: 3px solid #f59e0b; outline-offset: 3px; }}
-.progress {{ height: 1rem; background: #e5e7eb; }} .progress > span {{ display: block; height: 100%; background: #2563EB; }}
-.map-item {{ border-left: .35rem solid; padding-left: .6rem; }}
-@media (max-width: 800px) {{
-  #trail-layout {{ display: block; padding: 1rem; }}
-  #trail-sidebar {{ position: static; max-height: none; overflow: visible; }}
-  .js #sidebar-toggle {{ display: block; margin: 1rem; position: relative; z-index: 2; }}
-  .js #trail-sidebar {{ position: fixed; z-index: 1; inset: 0 auto 0 0; width: min(18rem, 85vw); overflow: auto; border-radius: 0; transform: translateX(-105%); transition: transform .2s ease; }}
-  .js #trail-sidebar.is-open {{ transform: translateX(0); }}
-}}
-@media (prefers-reduced-motion: reduce) {{ html {{ scroll-behavior: auto; }} }}
-@media print {{ #trail-sidebar, #sidebar-toggle {{ display: none !important; }} #trail-layout {{ display: block; max-width: none; padding: 0; }} a {{ color: #000; text-decoration: none; }} }}
-</style></head><body>
-<button id="sidebar-toggle" type="button" aria-controls="trail-sidebar" aria-expanded="false">Índice</button>
-<div id="trail-layout"><aside id="trail-sidebar" aria-label="Índice da apostila"><nav><h2>Índice</h2><ul>{navigation_html}</ul></nav></aside>
-<main id="trail-content"><h1>{html.escape(manifest['title'])}</h1>{recalibrated}
-<p>Progresso global: {overall}%</p><div class="progress" role="progressbar" aria-label="Progresso global" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{overall}"><span style="width:{overall}%"></span></div>
-<h2>Progresso por módulo</h2><ul>{module_progress}</ul>
-<h2>Legenda do mapa mental</h2><ul>{legend}</ul>{content_html}</main></div>
-<script>
-const toggle = document.getElementById('sidebar-toggle');
-const sidebar = document.getElementById('trail-sidebar');
-const mobileQuery = window.matchMedia('(max-width: 800px)');
-const setSidebarState = open => {{
-  const mobile = mobileQuery.matches;
-  sidebar.hidden = mobile && !open;
-  sidebar.inert = mobile && !open;
-  sidebar.classList.toggle('is-open', mobile && open);
-  toggle.setAttribute('aria-expanded', String(mobile && open));
-}};
-toggle.addEventListener('click', () => setSidebarState(sidebar.hidden));
-mobileQuery.addEventListener('change', () => setSidebarState(false));
-setSidebarState(false);
-document.documentElement.classList.add('js');
-const links = new Map([...document.querySelectorAll('[data-topic-link]')]
-  .map(link => [link.dataset.topicLink, link]));
-const sections = [...document.querySelectorAll('[data-topic-section]')];
-let navigationTarget = null;
-const activate = id => {{
-  links.forEach((link, key) => {{
-    const active = key === id;
-    link.classList.toggle('is-active', active);
-    if (active) link.setAttribute('aria-current', 'location');
-    else link.removeAttribute('aria-current');
-  }});
-  if (id) history.replaceState(null, '', `#topico-${{encodeURIComponent(id)}}`);
-}};
-links.forEach((link, key) => link.addEventListener('click', () => {{
-  navigationTarget = key;
-  activate(key);
-  window.setTimeout(() => {{ navigationTarget = null; }}, 500);
-}}));
-const observer = new IntersectionObserver(entries => {{
-  if (navigationTarget) return;
-  const visible = entries.filter(entry => entry.isIntersecting)
-    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-  if (visible) activate(visible.target.dataset.topicSection);
-}}, {{rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.1, 0.5]}});
-sections.forEach(section => observer.observe(section));
-</script>
-</body></html>\n'''
 
 
 def atomic_write(path, content):
