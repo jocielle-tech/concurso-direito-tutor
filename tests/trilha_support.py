@@ -1,3 +1,25 @@
+import struct
+import zlib
+
+
+def png_bytes(width=1536, height=1024, rgb=(99, 91, 255)):
+    """Return a minimal valid RGB PNG fixture without external dependencies."""
+    def chunk(kind, payload):
+        return (
+            struct.pack(">I", len(payload)) + kind + payload
+            + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+        )
+
+    row = b"\x00" + bytes(rgb) * width
+    raw = row * height
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw, level=9))
+        + chunk(b"IEND", b"")
+    )
+
+
 def question_feedback(number, topic_id="controle"):
     return f"""### Questão {number}
 - Tópico: {topic_id}
