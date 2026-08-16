@@ -46,7 +46,7 @@ tópico concluído → prepare_visual_map.py → ready: reutilizar cache
                                                                   └→ indisponível ou segunda falha: fallback textual
 ```
 
-O cache fica em `assets/mapas/<topico>-<hash>/<source_hash>.png`. Alterar o mapa textual cria uma nova chave de conteúdo e preserva os arquivos antigos. O HTML incorpora imagens válidas em Base64; o PDF usa os mesmos bytes. Em ausência ou invalidez, ambos mantêm o fluxograma textual determinístico.
+O cache fica em `assets/mapas/<topico>-<hash>/<source_hash>.png`. A versão visual atual (`dashboard-modern-v2`) invalida apenas a chave de cache anterior, sem apagar PNGs antigos; alterar o mapa textual também cria uma nova chave. O título atual do tópico fica fora dos pixels e é renderizado pelo HTML/PDF, por isso renomeá-lo não provoca nova imagem. O HTML incorpora imagens válidas em Base64; o PDF usa os mesmos bytes. Em ausência ou invalidez, ambos mantêm o fluxograma textual determinístico.
 
 ## Instalação
 

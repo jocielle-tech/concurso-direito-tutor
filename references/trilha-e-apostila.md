@@ -152,7 +152,7 @@ Para cada tópico recém-concluído:
 6. Não usar fallback CLI, não solicitar `OPENAI_API_KEY` e não chamar serviço externo.
 7. Se a ferramenta nativa estiver indisponível ou a segunda imagem continuar incorreta, não salvar a imagem e executar o build com fallback determinístico.
 
-O utilitário retorna um `expected_path` relativo, como `assets/mapas/<topico-normalizado>-<hash-curto>/<source_hash>.png`. O `source_hash` inclui o tópico, a versão visual, a proporção 3:2 e o mapa textual agregado das sessões concluídas: mesma fonte reutiliza cache; alteração do conteúdo cria novo arquivo sem apagar caches anteriores.
+O utilitário retorna um `expected_path` relativo, como `assets/mapas/<topico-normalizado>-<hash-curto>/<source_hash>.png`. O `source_hash` inclui o tópico, a versão visual, a proporção 3:2 e o mapa textual agregado das sessões concluídas: mesma fonte reutiliza cache; alteração do conteúdo cria novo arquivo sem apagar caches anteriores. A versão `dashboard-modern-v2` cria uma chave nova sem remover a v1. O título atual do tópico é renderizado fora dos pixels pelo HTML/PDF e não entra no prompt nem no hash, portanto renomeá-lo não gera imagem nova.
 
 Preservar os marcadores algorítmicos no mapa textual para orientar a imagem e o fallback: `ENTRADA`, `SE`, `ENTÃO`, `SENÃO`, `RESULTADO` e `ALERTA`. O HTML autocontido incorpora PNG aprovado em Base64, mantém alternativa textual verificável e oferece ampliação; o PDF usa os mesmos bytes, preserva o algoritmo pesquisável e aplica o fluxo textual quando não houver imagem válida.
 
