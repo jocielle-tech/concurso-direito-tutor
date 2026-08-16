@@ -521,7 +521,7 @@ def _metric_table(metrics, Table, TableStyle, Paragraph, styles, colors):
         Paragraph(f"<b>{_paragraph_markup(value)}</b><br/>{_paragraph_markup(label)}", styles["MetricLabel"])
         for label, value in metrics
     ]
-    table = Table([cells], colWidths=[46 * mm] * len(cells))
+    table = Table([cells], colWidths=[42 * mm] * len(cells))
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0EFFF")),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#C7C4FF")),
