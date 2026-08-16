@@ -142,6 +142,23 @@ class VisualMapTests(unittest.TestCase):
         self.assertEqual(first.source_hash, same.source_hash)
         self.assertNotEqual(first.source_hash, changed.source_hash)
 
+    def test_loader_leaves_stale_content_addressed_cache_untouched(self):
+        old_spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+        old_target = self.trail / old_spec.expected_path
+        old_target.parent.mkdir(parents=True)
+        old_bytes = png_bytes()
+        old_target.write_bytes(old_bytes)
+
+        changed_files = dict(self.session_files)
+        changed_files["s001"] = changed_files["s001"].replace("SE SIM", "SE PRESENTE")
+        current_spec = build_visual_map_specs(self.manifest, changed_files)["controle"]
+
+        assets = load_visual_map_assets(self.trail, {"controle": current_spec})
+
+        self.assertNotEqual(current_spec.expected_path, old_spec.expected_path)
+        self.assertEqual(assets["controle"].status, "missing")
+        self.assertEqual(old_target.read_bytes(), old_bytes)
+
     def test_asset_loader_reports_ready_missing_and_invalid(self):
         spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
 

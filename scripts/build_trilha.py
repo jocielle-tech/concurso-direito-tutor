@@ -17,11 +17,13 @@ try:
     from scripts.trilha_outputs import build_output_bundle, migration_session_relative_path, publish_bundle
     from scripts.trilha_migration import is_legacy_trail, migrate_legacy_trail
     from scripts.trilha_pdf import PdfDependencyError, render_pdf
+    from scripts.trilha_visual_maps import build_visual_map_specs, load_visual_map_assets
 except ModuleNotFoundError:  # Direct ``python scripts/build_trilha.py`` execution.
     from trilha_html import html_document
     from trilha_outputs import build_output_bundle, migration_session_relative_path, publish_bundle
     from trilha_migration import is_legacy_trail, migrate_legacy_trail
     from trilha_pdf import PdfDependencyError, render_pdf
+    from trilha_visual_maps import build_visual_map_specs, load_visual_map_assets
 
 
 SOURCES = {"provisional", "edital"}
@@ -388,9 +390,11 @@ def atomic_write(path, content):
 def build_trail(trail):
     """Validate and publish every normal derived artifact for one trail."""
     manifest, session_files = load_and_validate(trail)
+    specs = build_visual_map_specs(manifest, session_files)
+    visual_maps = load_visual_map_assets(trail, specs)
     markdown = markdown_document(manifest, session_files)
-    document = html_document(manifest, session_files)
-    pdf = render_pdf(manifest, session_files)
+    document = html_document(manifest, session_files, visual_maps)
+    pdf = render_pdf(manifest, session_files, visual_maps)
     outputs = build_output_bundle(trail, manifest, session_files, markdown, document, pdf)
     publish_bundle(trail, outputs)
 
@@ -410,6 +414,9 @@ def main(argv=None):
                 print("MIGRATION_REQUIRED", file=sys.stderr)
                 return MIGRATION_REQUIRED_EXIT
             migrate_legacy_trail(trail, build_trail, migration_session_relative_path, datetime.now())
+        elif args.check:
+            specs = build_visual_map_specs(manifest, session_files)
+            load_visual_map_assets(trail, specs)
         elif not args.check:
             build_trail(trail)
     except (ValidationError, PdfDependencyError, OSError, UnicodeDecodeError) as exc:

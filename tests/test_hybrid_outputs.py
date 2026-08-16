@@ -1,3 +1,4 @@
+import io
 import json
 import re
 import subprocess
@@ -6,6 +7,14 @@ import unittest
 from html.parser import HTMLParser
 from importlib.util import find_spec
 from pathlib import Path
+from unittest.mock import patch
+
+from pypdf import PdfReader
+
+import scripts.build_trilha as build_trilha
+from scripts.build_trilha import load_and_validate
+from scripts.trilha_visual_maps import build_visual_map_specs, load_visual_map_assets
+from tests.trilha_support import png_bytes
 
 from tests.test_build_trilha import valid_session
 
@@ -88,6 +97,106 @@ class HybridOutputTests(unittest.TestCase):
         return subprocess.run(
             ["python3", str(SCRIPT), str(self.trail)], text=True, capture_output=True
         )
+
+    def visual_map_target(self):
+        manifest, session_files = load_and_validate(self.trail)
+        spec = build_visual_map_specs(manifest, session_files)["controle"]
+        return self.trail / spec.expected_path
+
+    def generated_snapshot(self):
+        generated_roots = {"apostila", "painel", "materiais", "revisoes"}
+        return {
+            path.relative_to(self.trail).as_posix(): path.read_bytes()
+            for path in self.trail.rglob("*")
+            if path.is_file()
+            and (
+                path.relative_to(self.trail).parts[0] in generated_roots
+                or path.name in {"resumo.md", "mapa-mental.md", "questoes.md"}
+            )
+        }
+
+    def seed_generated_outputs(self):
+        sentinel = b"sentinel-derived-output"
+        for relative in (
+            "apostila/apostila.md", "apostila/apostila.html", "apostila/apostila.pdf",
+            "painel/indice.md", "materiais/mapas-mentais.md", "revisoes/agenda.md",
+        ):
+            target = self.trail / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(sentinel)
+        return sentinel
+
+    def assert_html_and_pdf_fallback(self):
+        document = (self.trail / "apostila/apostila.html").read_text(encoding="utf-8")
+        pdf = PdfReader(io.BytesIO((self.trail / "apostila/apostila.pdf").read_bytes()))
+        pdf_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        self.assertIn('class="algorithm-flow"', document)
+        self.assertNotIn("data:image/png;base64", document)
+        self.assertIn("Fluxo textual verificável", pdf_text)
+
+    def test_build_reuses_cached_map_without_modifying_source_asset(self):
+        expected = self.visual_map_target()
+        expected.parent.mkdir(parents=True)
+        expected.write_bytes(png_bytes())
+        before = expected.read_bytes()
+
+        first = self.run_build()
+        first_outputs = self.generated_snapshot()
+        second = self.run_build()
+
+        self.assertEqual((first.returncode, second.returncode), (0, 0), second.stderr)
+        self.assertEqual(expected.read_bytes(), before)
+        self.assertEqual(self.generated_snapshot(), first_outputs)
+        self.assertIn("data:image/png;base64", (self.trail / "apostila/apostila.html").read_text(encoding="utf-8"))
+
+    def test_invalid_map_falls_back_and_replaces_the_complete_bundle(self):
+        target = self.visual_map_target()
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"invalid-png")
+        sentinel = self.seed_generated_outputs()
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(target.read_bytes(), b"invalid-png")
+        self.assert_html_and_pdf_fallback()
+        self.assertTrue(self.generated_snapshot())
+        self.assertTrue(all(content != sentinel for content in self.generated_snapshot().values()))
+
+    def test_check_inspects_visual_assets_without_creating_or_modifying_them(self):
+        target = self.visual_map_target()
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"invalid-png")
+        before = {
+            path.relative_to(self.trail).as_posix(): path.read_bytes()
+            for path in self.trail.rglob("*") if path.is_file()
+        }
+
+        result = subprocess.run(
+            ["python3", str(SCRIPT), "--check", str(self.trail)], text=True, capture_output=True
+        )
+
+        after = {
+            path.relative_to(self.trail).as_posix(): path.read_bytes()
+            for path in self.trail.rglob("*") if path.is_file()
+        }
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(after, before)
+
+    def test_check_loads_visual_cache_without_rendering_or_publishing(self):
+        with (
+            patch.object(
+                build_trilha, "load_visual_map_assets", wraps=load_visual_map_assets
+            ) as loader,
+            patch.object(build_trilha, "render_pdf") as pdf,
+            patch.object(build_trilha, "publish_bundle") as publish,
+        ):
+            result = build_trilha.main(["--check", str(self.trail)])
+
+        self.assertEqual(result, 0)
+        loader.assert_called_once()
+        pdf.assert_not_called()
+        publish.assert_not_called()
 
     def test_builds_hybrid_layout_with_generated_markdown_notices(self):
         result = self.run_build()
@@ -322,6 +431,16 @@ class HybridOutputTests(unittest.TestCase):
         self.assertEqual((self.trail / "painel/indice.md").read_bytes(), b"old index")
         self.assertEqual((self.trail / "materiais/resumos.md").read_bytes(), b"old summaries")
         self.assertFalse((self.trail / "apostila/apostila.md").exists())
+
+    def test_publish_bundle_refuses_visual_map_source_assets(self):
+        from scripts.trilha_outputs import publish_bundle
+
+        target = self.trail / "assets/mapas/controle-cache/mapa.png"
+
+        with self.assertRaisesRegex(ValueError, "fonte"):
+            publish_bundle(self.trail, {target.relative_to(self.trail): b"derived image"})
+
+        self.assertFalse(target.exists())
 
     def test_secondary_topic_links_to_the_single_canonical_session_source(self):
         manifest = json.loads((self.trail / "trilha.json").read_text(encoding="utf-8"))

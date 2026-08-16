@@ -243,11 +243,17 @@ def _target_path(trail, relative):
     return target
 
 
+def _is_visual_map_source_path(relative):
+    return Path(relative).parts[:2] == ("assets", "mapas")
+
+
 def publish_bundle(trail, outputs, replace_file=lambda source, target: source.replace(target)):
     """Atomically replace a group of files, restoring all prior bytes on failure."""
     prepared, previous = {}, {}
     trail = Path(trail)
     try:
+        if any(_is_visual_map_source_path(relative) for relative in outputs):
+            raise ValueError("assets/mapas contém imagens-fonte e não pode ser publicado como derivado")
         for relative, content in outputs.items():
             target = _target_path(trail, relative)
             target.parent.mkdir(parents=True, exist_ok=True)
