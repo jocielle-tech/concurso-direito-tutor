@@ -191,3 +191,26 @@ class HtmlDashboardTests(unittest.TestCase):
                 )
         self.assertIn("Progresso do módulo", html)
         self.assertIn("Progresso do tópico", html)
+
+    def test_module_and_topic_progress_labels_include_distinct_escaped_titles(self):
+        self.manifest["modules"][0]["title"] = 'Módulo <A> & "um"'
+        self.manifest["modules"][0]["topics"][0]["title"] = 'Tópico <A> & "um"'
+        self.manifest["modules"][0]["topics"][1]["title"] = "Tópico B & especial"
+        self.manifest["modules"].append({
+            "id": "penal", "title": "Módulo B > dois", "topics": [{
+                "id": "crimes", "title": 'Tópico C: "três"', "weight": 1,
+                "status": "not_started", "sessions": [],
+            }],
+        })
+
+        html = render_html(self.manifest, self.session_files, {})
+
+        self.assertIn(
+            'aria-label="Progresso do módulo Módulo &lt;A&gt; &amp; &quot;um&quot;"', html
+        )
+        self.assertIn(
+            'aria-label="Progresso do tópico Tópico &lt;A&gt; &amp; &quot;um&quot;"', html
+        )
+        self.assertIn('aria-label="Progresso do tópico Tópico B &amp; especial"', html)
+        self.assertIn('aria-label="Progresso do módulo Módulo B &gt; dois"', html)
+        self.assertIn('aria-label="Progresso do tópico Tópico C: &quot;três&quot;"', html)

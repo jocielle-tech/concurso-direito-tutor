@@ -13,9 +13,11 @@ from pathlib import Path
 from typing import Literal
 
 
-VISUAL_TEMPLATE_VERSION = "dashboard-modern-v2"
+VISUAL_TEMPLATE_VERSION = "dashboard-modern-v3"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 SECTION = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+# This bounds the one in-memory file read; image payloads have their own cap below.
+MAX_PNG_FILE_BYTES = 72 * 1024 * 1024
 MAX_PNG_COMPRESSED_BYTES = 64 * 1024 * 1024
 MAX_PNG_DECOMPRESSED_BYTES = 64 * 1024 * 1024
 VALID_PNG_FORMATS = {
@@ -79,8 +81,7 @@ def _visual_prompt(lines):
         "Asset type: complementary algorithmic study diagram for a Portuguese law handout.\n"
         "Primary request: render exactly one hierarchical decision flow from the supplied Markdown.\n"
         "Composition/framing: horizontal 3:2, designed for 1536×1024, generous safe margins, "
-        "clear parent-child connectors only according to Markdown indentation. siblings have no arrows, "
-        "especially RESULTADO and ALERTA siblings.\n"
+        "clear parent-child connectors only according to Markdown indentation; no connectors between siblings.\n"
         "Style/medium: Dashboard Moderno infographic-diagram, polished flat vector-like cards, no radial map.\n"
         "Color palette: semantic violet/blue dashboard base; ENTRADA blue, SE/ENTÃO green, "
         "SENÃO amber, RESULTADO violet, ALERTA red; high contrast on a clean light background.\n"
@@ -168,9 +169,10 @@ def _validate_png_scanlines(idat, width, height, bit_depth, color_type, interlac
     try:
         decoder = zlib.decompressobj()
         raw = decoder.decompress(idat, expected + 1)
-        raw += decoder.flush()
     except zlib.error as exc:
         raise ValueError("dados de imagem PNG comprimidos inválidos") from exc
+    if decoder.unconsumed_tail or len(raw) > expected:
+        raise ValueError("dados de imagem PNG truncados ou excedentes")
     if len(raw) != expected or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
         raise ValueError("dados de imagem PNG truncados ou excedentes")
     offset = 0
@@ -272,7 +274,10 @@ def load_visual_map_assets(trail, specs):
             assets[topic_id] = VisualMapAsset(spec, "missing", None, None)
             continue
         try:
-            content = target.read_bytes()
+            with target.open("rb") as source:
+                content = source.read(MAX_PNG_FILE_BYTES + 1)
+            if len(content) > MAX_PNG_FILE_BYTES:
+                raise ValueError("arquivo PNG excede o limite seguro")
             width, height = _png_dimensions(content)
             if width < 640 or height < 640:
                 raise ValueError("imagem PNG deve ter pelo menos 640 px em cada dimensão")

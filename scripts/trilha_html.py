@@ -328,13 +328,13 @@ def render_html(manifest, session_files, visual_maps):
     content_html = "\n".join(
         f'<section class="module-section" aria-labelledby="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">'
         f'<h2 id="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</h2>'
-        f'{_progress_indicator("module", module["id"], "Progresso do módulo", progress(module["topics"]))}'
+        f'{_progress_indicator("module", module["id"], "Progresso do módulo " + module["title"], progress(module["topics"]))}'
         + "\n".join(
             f'<section id="{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
             f'data-topic-section="{html.escape(topic["id"], quote=True)}" '
             f'aria-label="{html.escape(topic["title"], quote=True)}">'
             f'<div class="topic-heading"><h3>{html.escape(topic["title"])}</h3><span class="status-chip status-{html.escape(topic["status"], quote=True)}">{html.escape(topic["status"].replace("_", " "))}</span></div>'
-            f'{_progress_indicator("topic", topic["id"], "Progresso do tópico", 100 if topic["status"] == "completed" else 0)}'
+            f'{_progress_indicator("topic", topic["id"], "Progresso do tópico " + topic["title"], 100 if topic["status"] == "completed" else 0)}'
             f'{_visual_map_html(topic, visual_maps.get(topic["id"]))}'
             + "\n".join(
                 html_session(session_files[session["id"]], anchor_id("sessao", session["id"]), local_fragments)

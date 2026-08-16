@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import struct
 import subprocess
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 from scripts.trilha_visual_maps import (
     VISUAL_TEMPLATE_VERSION,
+    _png_dimensions,
     build_visual_map_specs,
     load_visual_map_assets,
 )
@@ -54,6 +56,24 @@ def truncated_idat_png(width=1536, height=1024):
     return png_with_chunks(
         png_chunk(b"IHDR", header),
         png_chunk(b"IDAT", zlib.compress(raw, level=9)[:-8]),
+        png_chunk(b"IEND", b""),
+    )
+
+
+def overexpanded_idat_png():
+    """A small PNG whose one declared scanline would inflate far past its layout."""
+    # Each distinct block is deliberately moderately compressible: the complete
+    # IDAT is only tens of KiB, while its decoded data is much larger than the
+    # single RGB scanline declared by IHDR.
+    blocks = []
+    for index in range(96):
+        seed = hashlib.sha512(str(index).encode("ascii")).digest()
+        blocks.append(seed * 256)
+    inflated = b"".join(blocks)
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    return png_with_chunks(
+        png_chunk(b"IHDR", header),
+        png_chunk(b"IDAT", zlib.compress(inflated, level=9)),
         png_chunk(b"IEND", b""),
     )
 
@@ -166,7 +186,7 @@ class VisualMapTests(unittest.TestCase):
 
         same = build_visual_map_specs(renamed, self.session_files)["controle"]
 
-        self.assertEqual(VISUAL_TEMPLATE_VERSION, "dashboard-modern-v2")
+        self.assertEqual(VISUAL_TEMPLATE_VERSION, "dashboard-modern-v3")
         self.assertEqual(first.source_hash, same.source_hash)
         self.assertEqual(first.expected_path, same.expected_path)
         self.assertEqual(first.prompt, same.prompt)
@@ -185,13 +205,14 @@ class VisualMapTests(unittest.TestCase):
 
         self.assertIn("\n  - [regra] SE SIM", prompt)
         self.assertIn("\n    - [jurisprudencia] RESULTADO", prompt)
-        self.assertIn("siblings have no arrows", prompt)
+        self.assertIn("no connectors between siblings", prompt)
+        self.assertNotIn("especially RESULTADO and ALERTA siblings", prompt)
         self.assertIn("no topic title or headline", prompt)
 
     def test_visual_template_change_invalidates_content_addressed_cache(self):
         first = build_visual_map_specs(self.manifest, self.session_files)["controle"]
 
-        with patch("scripts.trilha_visual_maps.VISUAL_TEMPLATE_VERSION", "dashboard-modern-v3"):
+        with patch("scripts.trilha_visual_maps.VISUAL_TEMPLATE_VERSION", "dashboard-modern-v4"):
             changed = build_visual_map_specs(self.manifest, self.session_files)["controle"]
 
         self.assertNotEqual(first.source_hash, changed.source_hash)
@@ -265,6 +286,64 @@ class VisualMapTests(unittest.TestCase):
 
         self.assertEqual(asset.status, "invalid")
         self.assertIn("dados de imagem", asset.error)
+
+    def test_scanline_validator_rejects_bounded_overexpansion_without_flush(self):
+        content = overexpanded_idat_png()
+        self.assertGreater(len(content), 10_000)
+        self.assertLess(len(content), 100_000)
+        original_factory = zlib.decompressobj
+        tracker = []
+
+        class TrackingDecoder:
+            def __init__(self):
+                self.decoder = original_factory()
+                self.flush_called = False
+
+            def decompress(self, data, maximum):
+                return self.decoder.decompress(data, maximum)
+
+            def flush(self, *args, **kwargs):
+                self.flush_called = True
+                return self.decoder.flush(*args, **kwargs)
+
+            @property
+            def eof(self):
+                return self.decoder.eof
+
+            @property
+            def unused_data(self):
+                return self.decoder.unused_data
+
+            @property
+            def unconsumed_tail(self):
+                return self.decoder.unconsumed_tail
+
+        def tracked_factory():
+            decoder = TrackingDecoder()
+            tracker.append(decoder)
+            return decoder
+
+        with patch("scripts.trilha_visual_maps.zlib.decompressobj", tracked_factory):
+            with self.assertRaisesRegex(ValueError, "excedentes"):
+                _png_dimensions(content)
+
+        self.assertEqual(len(tracker), 1)
+        self.assertFalse(tracker[0].flush_called)
+        self.assertTrue(tracker[0].unconsumed_tail)
+
+    def test_loader_reads_only_through_bounded_file_handle(self):
+        spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+        target = self.trail / spec.expected_path
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"x" * 101)
+
+        with patch("scripts.trilha_visual_maps.MAX_PNG_FILE_BYTES", 100), patch.object(
+            Path, "read_bytes", side_effect=AssertionError("unbounded read_bytes")
+        ):
+            asset = load_visual_map_assets(self.trail, {"controle": spec})["controle"]
+
+        self.assertEqual(asset.status, "invalid")
+        self.assertIn("limite seguro", asset.error)
 
     def test_loader_rejects_invalid_png_chunk_order_and_empty_image_data(self):
         spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
