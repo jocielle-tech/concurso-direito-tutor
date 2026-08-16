@@ -162,7 +162,11 @@ def _png_dimensions(content):
                 raise ValueError("chunk PLTE PNG fora de ordem")
             found_palette = True
         elif kind == b"IEND":
-            if length != 0 or chunk_end != len(content) or image_data_state != "in_idat":
+            if (
+                length != 0
+                or chunk_end != len(content)
+                or image_data_state not in {"in_idat", "after_idat"}
+            ):
                 raise ValueError("chunk IEND PNG inválido")
             found_iend = True
             break

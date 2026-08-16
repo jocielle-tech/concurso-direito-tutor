@@ -209,6 +209,18 @@ class VisualMapTests(unittest.TestCase):
                 self.assertEqual(asset.status, "invalid")
                 self.assertIsNotNone(asset.error)
 
+    def test_loader_accepts_valid_ancillary_chunk_after_image_data(self):
+        spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+        target = self.trail / spec.expected_path
+        target.parent.mkdir(parents=True)
+        valid_png = png_bytes()
+        target.write_bytes(valid_png[:-12] + png_chunk(b"tEXt", b"author\x00Tutor") + valid_png[-12:])
+
+        asset = load_visual_map_assets(self.trail, {"controle": spec})["controle"]
+
+        self.assertEqual(asset.status, "ready")
+        self.assertIsNotNone(asset.png_bytes)
+
     def test_loader_rejects_path_outside_trail(self):
         spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
         escaped = type(spec)(
