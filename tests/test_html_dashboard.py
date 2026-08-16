@@ -1,7 +1,7 @@
 import unittest
 from html.parser import HTMLParser
 
-from scripts.trilha_html import PALETTE, render_html
+from scripts.trilha_html import FOCUS_COLORS, HERO_COLORS, PALETTE, anchor_id, render_html
 from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
 from tests.test_visual_maps import algorithm_session
 from tests.trilha_support import png_bytes
@@ -131,3 +131,34 @@ class HtmlDashboardTests(unittest.TestCase):
         for foreground, background in ((PALETTE["ink"], PALETTE["surface"]),
                                        (PALETTE["muted"], PALETTE["surface"])):
             self.assertGreaterEqual(contrast_ratio(foreground, background), 4.5)
+
+    def test_missing_asset_entry_uses_encoded_algorithm_fallback_target(self):
+        unusual_id = "controle especial/ação"
+        topic = self.manifest["modules"][0]["topics"][0]
+        topic["id"] = unusual_id
+        self.manifest["sessions"][0]["topic_ids"] = [unusual_id]
+
+        html = render_html(self.manifest, self.session_files, {})
+        target = anchor_id("algorithm", unusual_id)
+        parser = DocumentParser()
+        parser.feed(html)
+
+        self.assertIn(f'id="{target}"', html)
+        self.assertIn('class="algorithm-flow"', html)
+        self.assertIn("ENTRADA: existe caso concreto?", html)
+        self.assertEqual(parser.ids.count(target), 1)
+        self.assertNotIn(f'id="algorithm-{unusual_id}"', html)
+
+    def test_hero_and_focus_palette_meet_required_contrast(self):
+        html = self.build_html()
+        for background in HERO_COLORS.values():
+            self.assertGreaterEqual(contrast_ratio("#FFFFFF", background), 4.5)
+            self.assertGreaterEqual(contrast_ratio(FOCUS_COLORS["hero"], background), 3)
+        for background in (PALETTE["surface"], PALETTE["canvas"]):
+            self.assertGreaterEqual(contrast_ratio(FOCUS_COLORS["surface"], background), 3)
+        self.assertIn(
+            f"background:linear-gradient(122deg,{HERO_COLORS['violet']},{HERO_COLORS['blue']})",
+            html,
+        )
+        self.assertIn(f"outline:3px solid {FOCUS_COLORS['surface']}", html)
+        self.assertIn(f"outline-color:{FOCUS_COLORS['hero']}", html)

@@ -13,6 +13,8 @@ PALETTE = {
     "canvas": "#F4F7FB", "violet": "#635BFF", "blue": "#0284C7",
     "success": "#15803D", "warning": "#B45309", "danger": "#B42318",
 }
+HERO_COLORS = {"violet": "#3730A3", "blue": "#075985"}
+FOCUS_COLORS = {"surface": "#344054", "hero": "#FFFFFF"}
 MAP_CATEGORIES = {
     "conceito": ("Conceito", "#2563EB"),
     "regra": ("Regra", "#16A34A"),
@@ -124,6 +126,7 @@ def _algorithm_label(line):
 
 
 def _algorithm_fallback(topic, lines):
+    target_id = html.escape(anchor_id("algorithm", topic["id"]), quote=True)
     topic_id = html.escape(topic["id"], quote=True)
     nodes = []
     for line in lines:
@@ -138,7 +141,7 @@ def _algorithm_fallback(topic, lines):
     if not nodes:
         nodes.append('<li class="algorithm-node algorithm-step">Mapa algorítmico indisponível.</li>')
     return (
-        f'<div id="algorithm-{topic_id}" class="algorithm-flow" data-algorithm-fallback="{topic_id}">'
+        f'<div id="{target_id}" class="algorithm-flow" data-algorithm-fallback="{topic_id}">'
         f'<p class="algorithm-caption">Fluxo textual verificável</p><ol>{"".join(nodes)}</ol></div>'
     )
 
@@ -149,6 +152,7 @@ def _data_uri(png_bytes):
 
 def _visual_map_html(topic, asset):
     topic_id = html.escape(topic["id"], quote=True)
+    algorithm_target = html.escape(anchor_id("algorithm", topic["id"]), quote=True)
     lines = asset.spec.algorithm_lines if asset else ()
     fallback = _algorithm_fallback(topic, lines)
     if asset and asset.status == "ready" and asset.png_bytes:
@@ -159,11 +163,13 @@ def _visual_map_html(topic, asset):
             f'<button type="button" class="map-open" data-map-open="{topic_id}" '
             f'aria-haspopup="dialog"><img src="{source}" alt="{alt}" loading="lazy"></button>'
             '<figcaption>Mapa algorítmico — clique para ampliar. '
-            f'<a class="no-js-map-link" href="#algorithm-{topic_id}">Ler fluxo textual</a></figcaption>'
+            f'<a class="no-js-map-link" href="#{algorithm_target}">Ler fluxo textual</a></figcaption>'
             f'{fallback}</figure>'
         )
     if asset:
-        return f'<section class="visual-map-card" data-visual-map="{topic_id}">{fallback}</section>'
+        return f'<div class="visual-map-card" data-visual-map="{topic_id}">{fallback}</div>'
+    if topic["status"] == "completed":
+        return f'<div class="visual-map-card" data-visual-map="{topic_id}">{fallback}</div>'
     return ""
 
 
@@ -288,7 +294,7 @@ def render_html(manifest, session_files, visual_maps):
         *(anchor_id("modulo", module["id"]) for module in manifest["modules"]),
         *(anchor_id("topico", topic["id"]) for topic in topics),
         *(anchor_id("sessao", session["id"]) for session in manifest["sessions"]),
-        *(f"algorithm-{topic['id']}" for topic in topics if topic["id"] in visual_maps),
+        *(anchor_id("algorithm", topic["id"]) for topic in topics if topic["status"] == "completed"),
     }
     navigation_html = "".join(
         f'<li><a class="module-label" href="#{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</a><ul>'
@@ -338,8 +344,8 @@ def render_html(manifest, session_files, visual_maps):
 <style>
 :root {{ --ink:{PALETTE['ink']}; --muted:{PALETTE['muted']}; --surface:{PALETTE['surface']}; --canvas:{PALETTE['canvas']}; --violet:{PALETTE['violet']}; --blue:{PALETTE['blue']}; --success:{PALETTE['success']}; --warning:{PALETTE['warning']}; --danger:{PALETTE['danger']}; --border:#D0D5DD; --shadow:0 10px 30px rgba(16,24,40,.08); }}
 * {{ box-sizing:border-box; }} html {{ scroll-behavior: smooth; }} body {{ margin:0; background:var(--canvas); color:var(--ink); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.55; }}
-a {{ color:#175CD3; }} a:focus-visible, button:focus-visible {{ outline:3px solid #F79009; outline-offset:3px; }} button {{ font:inherit; }}
-#dashboard-hero {{ max-width:1200px; margin:0 auto; padding:2.2rem 1.5rem 1.5rem; color:#fff; background:linear-gradient(122deg,var(--violet),var(--blue)); border-radius:0 0 1.5rem 1.5rem; }} #dashboard-hero h1 {{ margin:0; font-size:clamp(1.75rem,4vw,2.7rem); line-height:1.12; }} #dashboard-hero p {{ margin:.65rem 0 0; max-width:56rem; }}
+a {{ color:#175CD3; }} a:focus-visible, button:focus-visible {{ outline:3px solid {FOCUS_COLORS['surface']}; outline-offset:3px; }} #dashboard-hero a:focus-visible, #dashboard-hero button:focus-visible {{ outline-color:{FOCUS_COLORS['hero']}; }} button {{ font:inherit; }}
+#dashboard-hero {{ max-width:1200px; margin:0 auto; padding:2.2rem 1.5rem 1.5rem; color:#fff; background:linear-gradient(122deg,{HERO_COLORS['violet']},{HERO_COLORS['blue']}); border-radius:0 0 1.5rem 1.5rem; }} #dashboard-hero h1 {{ margin:0; font-size:clamp(1.75rem,4vw,2.7rem); line-height:1.12; }} #dashboard-hero p {{ margin:.65rem 0 0; max-width:56rem; }}
 .metric-grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.8rem; margin-top:1.4rem; }} .metric-card {{ min-width:0; padding:1rem; border:1px solid rgba(255,255,255,.3); border-radius:.85rem; background:rgba(255,255,255,.14); }} .metric-card span {{ display:block; font-size:.82rem; }} .metric-card strong {{ display:block; margin-top:.2rem; font-size:1.1rem; overflow-wrap:anywhere; }}
 #trail-layout {{ display:grid; grid-template-columns:minmax(13rem,18rem) minmax(0,1fr); gap:2rem; max-width:1200px; margin:0 auto; padding:1.5rem; }} #trail-sidebar {{ position:sticky; top:1rem; align-self:start; max-height:calc(100vh - 2rem); overflow:auto; padding:1rem; border:1px solid var(--border); border-radius:.85rem; background:var(--surface); box-shadow:var(--shadow); }} #trail-sidebar ul {{ padding-left:1rem; }} #trail-sidebar a {{ color:#175CD3; }} .module-label {{ display:block; margin-top:.5rem; font-weight:700; color:var(--ink) !important; }} [data-topic-link].is-active {{ color:var(--ink); font-weight:700; }} [data-topic-link].is-active::after {{ content:" — tópico atual"; }} #sidebar-toggle {{ display:none; }}
 #trail-content {{ min-width:0; }} [data-topic-section] {{ scroll-margin-top:1rem; margin-bottom:2.6rem; }} .module-section > h2 {{ margin:0 0 1rem; font-size:1.65rem; }} .topic-heading {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; }} .topic-heading h3,.session-title {{ margin:1.4rem 0 .7rem; }} .status-chip,.question-chip {{ display:inline-block; padding:.2rem .55rem; border-radius:999px; background:#E0EAFF; color:#00359E; font-size:.82rem; font-weight:700; text-transform:capitalize; }} .status-completed {{ background:#DCFCE7; color:#14532D; }} .status-in_progress {{ background:#FEF3C7; color:#78350F; }}
