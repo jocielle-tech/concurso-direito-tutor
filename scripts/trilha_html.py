@@ -285,6 +285,19 @@ def _metrics(manifest, session_files):
     )
 
 
+def _progress_indicator(scope, marker, label, value):
+    """Return a visible, screen-reader friendly progress meter with a stable selector."""
+    safe_marker = html.escape(marker, quote=True)
+    safe_label = html.escape(label, quote=True)
+    return (
+        f'<div class="progress progress-{scope}" data-progress-{scope}="{safe_marker}" '
+        f'role="progressbar" aria-label="{safe_label}" aria-valuemin="0" '
+        f'aria-valuemax="100" aria-valuenow="{value}" aria-valuetext="{value}% concluído">'
+        f'<span style="width:{value}%"></span></div>'
+        f'<p class="progress-caption">{html.escape(label)}: <strong>{value}%</strong></p>'
+    )
+
+
 def render_html(manifest, session_files, visual_maps):
     """Render a deterministic portable dashboard.  The caller owns asset discovery."""
     visual_maps = visual_maps or {}
@@ -315,11 +328,13 @@ def render_html(manifest, session_files, visual_maps):
     content_html = "\n".join(
         f'<section class="module-section" aria-labelledby="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">'
         f'<h2 id="{html.escape(anchor_id("modulo", module["id"]), quote=True)}">{html.escape(module["title"])}</h2>'
+        f'{_progress_indicator("module", module["id"], "Progresso do módulo", progress(module["topics"]))}'
         + "\n".join(
             f'<section id="{html.escape(anchor_id("topico", topic["id"]), quote=True)}" '
             f'data-topic-section="{html.escape(topic["id"], quote=True)}" '
             f'aria-label="{html.escape(topic["title"], quote=True)}">'
             f'<div class="topic-heading"><h3>{html.escape(topic["title"])}</h3><span class="status-chip status-{html.escape(topic["status"], quote=True)}">{html.escape(topic["status"].replace("_", " "))}</span></div>'
+            f'{_progress_indicator("topic", topic["id"], "Progresso do tópico", 100 if topic["status"] == "completed" else 0)}'
             f'{_visual_map_html(topic, visual_maps.get(topic["id"]))}'
             + "\n".join(
                 html_session(session_files[session["id"]], anchor_id("sessao", session["id"]), local_fragments)
@@ -350,7 +365,7 @@ a {{ color:#175CD3; }} a:focus-visible, button:focus-visible {{ outline:3px soli
 #trail-layout {{ display:grid; grid-template-columns:minmax(13rem,18rem) minmax(0,1fr); gap:2rem; max-width:1200px; margin:0 auto; padding:1.5rem; }} #trail-sidebar {{ position:sticky; top:1rem; align-self:start; max-height:calc(100vh - 2rem); overflow:auto; padding:1rem; border:1px solid var(--border); border-radius:.85rem; background:var(--surface); box-shadow:var(--shadow); }} #trail-sidebar ul {{ padding-left:1rem; }} #trail-sidebar a {{ color:#175CD3; }} .module-label {{ display:block; margin-top:.5rem; font-weight:700; color:var(--ink) !important; }} [data-topic-link].is-active {{ color:var(--ink); font-weight:700; }} [data-topic-link].is-active::after {{ content:" — tópico atual"; }} #sidebar-toggle {{ display:none; }}
 #trail-content {{ min-width:0; }} [data-topic-section] {{ scroll-margin-top:1rem; margin-bottom:2.6rem; }} .module-section > h2 {{ margin:0 0 1rem; font-size:1.65rem; }} .topic-heading {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; }} .topic-heading h3,.session-title {{ margin:1.4rem 0 .7rem; }} .status-chip,.question-chip {{ display:inline-block; padding:.2rem .55rem; border-radius:999px; background:#E0EAFF; color:#00359E; font-size:.82rem; font-weight:700; text-transform:capitalize; }} .status-completed {{ background:#DCFCE7; color:#14532D; }} .status-in_progress {{ background:#FEF3C7; color:#78350F; }}
 .study-card,.visual-map-card {{ margin:1rem 0; padding:1.15rem; border:1px solid var(--border); border-radius:1rem; background:var(--surface); box-shadow:var(--shadow); }} .study-card h4 {{ margin:0 0 .75rem; }} .study-card p,.question-card p {{ margin:.5rem 0; }} .question-card {{ margin:.85rem 0; padding:1rem; border-left:4px solid var(--violet); border-radius:.7rem; background:#F9FAFF; }} .question-card h5 {{ margin:0 0 .6rem; font-size:1rem; }} .question-field {{ color:var(--muted); }}
-.progress {{ height:.75rem; overflow:hidden; border-radius:999px; background:#DDE3EE; }} .progress > span {{ display:block; height:100%; background:linear-gradient(90deg,var(--violet),var(--blue)); }} .mind-map {{ padding-left:1.2rem; }} .map-item {{ margin:.35rem 0; border-left:.35rem solid; padding-left:.6rem; }}
+.progress {{ height:.75rem; overflow:hidden; border-radius:999px; background:#DDE3EE; }} .progress > span {{ display:block; height:100%; background:linear-gradient(90deg,var(--violet),var(--blue)); }} .progress-caption {{ margin:.35rem 0 .85rem; color:var(--muted); font-size:.88rem; }} .progress-module {{ max-width:34rem; }} .progress-topic {{ max-width:24rem; }} .mind-map {{ padding-left:1.2rem; }} .map-item {{ margin:.35rem 0; border-left:.35rem solid; padding-left:.6rem; }}
 .visual-map-card {{ overflow:hidden; }} .map-open {{ display:block; width:100%; padding:0; border:0; border-radius:.75rem; background:transparent; cursor:zoom-in; }} .map-open img {{ display:block; width:100%; height:auto; border-radius:.75rem; }} .visual-map-card figcaption {{ margin-top:.75rem; color:var(--muted); font-size:.9rem; }} .algorithm-flow {{ margin-top:1rem; }} .algorithm-caption {{ margin:0 0 .45rem; font-weight:700; color:var(--muted); }} .algorithm-flow ol {{ display:grid; gap:.55rem; margin:0; padding:0; list-style:none; }} .algorithm-node {{ padding:.7rem .8rem; border:1px solid var(--border); border-radius:.65rem; background:#fff; }} .algorithm-decision {{ border-color:#7C3AED; background:#F5F3FF; }} .algorithm-alert {{ border-color:#B42318; background:#FEF3F2; }}
 dialog {{ width:min(92vw,1100px); max-height:92vh; padding:0; border:0; border-radius:1rem; color:var(--ink); box-shadow:0 24px 70px rgba(16,24,40,.35); }} dialog::backdrop {{ background:rgba(16,24,40,.65); }} .dialog-toolbar {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.25rem; }} .dialog-toolbar h2 {{ margin:0; font-size:1.15rem; }} [data-map-close] {{ width:2.4rem; height:2.4rem; border:1px solid var(--border); border-radius:50%; background:#fff; color:var(--ink); font-size:1.4rem; cursor:pointer; }} #map-dialog-image {{ display:block; max-width:100%; max-height:calc(92vh - 5rem); margin:0 auto 1rem; }}
 @media (max-width: 800px) {{
@@ -366,7 +381,7 @@ dialog {{ width:min(92vw,1100px); max-height:92vh; padding:0; border:0; border-r
 @media (prefers-reduced-motion: reduce) {{ *,*::before,*::after {{ animation-duration:.01ms !important; transition-duration:.01ms !important; }} }}
 @media print {{ body {{ background:#fff; }} #dashboard-hero {{ max-width:none; padding:0; color:#000; background:none; }} #trail-sidebar,#sidebar-toggle {{ display:none !important; }} #trail-layout {{ display:block; max-width:none; padding:0; }} .metric-grid {{ grid-template-columns:repeat(4,1fr); }} .metric-card,.study-card,.visual-map-card {{ box-shadow:none; }} .map-open {{ cursor:default; }} .no-js-map-link {{ display:none; }} a {{ color:#000; text-decoration:none; }} }}
 </style></head><body>
-<header id="dashboard-hero"><h1>{html.escape(manifest['title'])}</h1>{recalibrated}<p>Roteiro de estudo, revisões e questões com feedback em uma apostila navegável.</p><div class="progress" role="progressbar" aria-label="Progresso global" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{overall}"><span style="width:{overall}%"></span></div><div class="metric-grid">{metric_html}</div></header>
+<header id="dashboard-hero"><h1>{html.escape(manifest['title'])}</h1>{recalibrated}<p>Roteiro de estudo, revisões e questões com feedback em uma apostila navegável.</p>{_progress_indicator("global", "global", "Progresso global", overall)}<div class="metric-grid">{metric_html}</div></header>
 <button id="sidebar-toggle" type="button" aria-controls="trail-sidebar" aria-expanded="false">Índice</button>
 <div id="trail-layout"><aside id="trail-sidebar" aria-label="Índice da apostila"><nav><h2>Índice</h2><ul>{navigation_html}</ul></nav></aside><main id="trail-content"><h2>Conteúdo da apostila</h2><h3>Legenda do mapa mental</h3><ul>{legend}</ul>{content_html}</main></div>
 <dialog id="map-dialog" aria-modal="true" aria-labelledby="map-dialog-title"><div class="dialog-toolbar"><h2 id="map-dialog-title">Mapa algorítmico</h2><button type="button" data-map-close aria-label="Fechar mapa">×</button></div><img id="map-dialog-image" alt=""></dialog>

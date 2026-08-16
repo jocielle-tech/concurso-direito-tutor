@@ -162,3 +162,32 @@ class HtmlDashboardTests(unittest.TestCase):
         )
         self.assertIn(f"outline:3px solid {FOCUS_COLORS['surface']}", html)
         self.assertIn(f"outline-color:{FOCUS_COLORS['hero']}", html)
+
+    def test_global_module_and_topic_progress_are_accessible_and_stable(self):
+        second_module = {
+            "id": "administrativo", "title": "Direito Administrativo", "topics": [{
+                "id": "atos", "title": "Atos administrativos", "weight": 2,
+                "status": "in_progress", "sessions": [],
+            }],
+        }
+        self.manifest["modules"].append(second_module)
+
+        html = render_html(self.manifest, self.session_files, {})
+
+        expected = (
+            ('global', '17'),
+            ('constitucional', '25'),
+            ('administrativo', '0'),
+            ('controle', '100'),
+            ('direitos', '0'),
+            ('atos', '0'),
+        )
+        for marker, value in expected:
+            with self.subTest(marker=marker):
+                self.assertRegex(
+                    html,
+                    rf'data-progress-(?:global|module|topic)="{marker}"[^>]*role="progressbar"'
+                    rf'[^>]*aria-valuemin="0"[^>]*aria-valuemax="100"[^>]*aria-valuenow="{value}"',
+                )
+        self.assertIn("Progresso do módulo", html)
+        self.assertIn("Progresso do tópico", html)

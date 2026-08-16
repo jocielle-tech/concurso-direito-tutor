@@ -177,6 +177,7 @@ def _map_flowables(topic, asset, lines, Image, Paragraph, ParagraphStyle, KeepTo
             # Eager decoding keeps malformed cache entries local to this map instead
             # of allowing ReportLab to fail later while building the whole document.
             image = Image(io.BytesIO(asset.png_bytes), lazy=0)
+            image._img.getRGBData()
             image._restrictSize(max_width, max_height)
         except (OSError, TypeError, ValueError):
             has_ready_image = False

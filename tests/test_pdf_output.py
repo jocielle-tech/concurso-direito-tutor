@@ -10,7 +10,7 @@ from pypdf import PdfReader
 
 from scripts.trilha_pdf import render_pdf
 from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
-from tests.test_visual_maps import algorithm_session
+from tests.test_visual_maps import algorithm_session, truncated_idat_png
 from tests.trilha_support import png_bytes
 
 
@@ -171,6 +171,17 @@ class PdfOutputTests(unittest.TestCase):
 
         text = self.pdf_text(render_pdf(manifest, session_files, {
             "controle": VisualMapAsset(spec, "ready", b"not-a-png", None),
+        }))
+
+        self.assertIn("Mapa algorítmico", text)
+        self.assertIn("ENTRADA: existe caso concreto?", text)
+
+    def test_crc_valid_but_corrupt_ready_image_degrades_to_textual_fallback(self):
+        manifest, session_files, assets = self.ready_visual_fixture()
+        spec = assets["controle"].spec
+
+        text = self.pdf_text(render_pdf(manifest, session_files, {
+            "controle": VisualMapAsset(spec, "ready", truncated_idat_png(), None),
         }))
 
         self.assertIn("Mapa algorítmico", text)

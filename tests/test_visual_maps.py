@@ -6,8 +6,13 @@ import tempfile
 import unittest
 import zlib
 from pathlib import Path
+from unittest.mock import patch
 
-from scripts.trilha_visual_maps import build_visual_map_specs, load_visual_map_assets
+from scripts.trilha_visual_maps import (
+    VISUAL_TEMPLATE_VERSION,
+    build_visual_map_specs,
+    load_visual_map_assets,
+)
 from tests.test_build_trilha import valid_session
 from tests.trilha_support import png_bytes
 
@@ -40,6 +45,17 @@ def png_chunk(kind, payload):
 
 def png_with_chunks(*chunks):
     return PNG_SIGNATURE + b"".join(chunks)
+
+
+def truncated_idat_png(width=1536, height=1024):
+    """Keep PNG chunk CRCs valid while truncating the compressed pixel stream."""
+    raw = (b"\x00" + bytes((99, 91, 255)) * width) * height
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return png_with_chunks(
+        png_chunk(b"IHDR", header),
+        png_chunk(b"IDAT", zlib.compress(raw, level=9)[:-8]),
+        png_chunk(b"IEND", b""),
+    )
 
 
 class VisualMapTests(unittest.TestCase):
@@ -142,6 +158,45 @@ class VisualMapTests(unittest.TestCase):
         self.assertEqual(first.source_hash, same.source_hash)
         self.assertNotEqual(first.source_hash, changed.source_hash)
 
+    def test_rename_preserves_hash_path_and_pixel_prompt(self):
+        first = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+        renamed = copy.deepcopy(self.manifest)
+        renamed["modules"][0]["title"] = "Outro módulo"
+        renamed["modules"][0]["topics"][0]["title"] = "Outro título visível"
+
+        same = build_visual_map_specs(renamed, self.session_files)["controle"]
+
+        self.assertEqual(VISUAL_TEMPLATE_VERSION, "dashboard-modern-v2")
+        self.assertEqual(first.source_hash, same.source_hash)
+        self.assertEqual(first.expected_path, same.expected_path)
+        self.assertEqual(first.prompt, same.prompt)
+        self.assertNotIn("Outro título visível", same.prompt)
+        self.assertNotIn("Topic:", same.prompt)
+
+    def test_prompt_preserves_markdown_indentation_for_parent_child_topology(self):
+        self.session_files["s001"] = algorithm_session("Controle difuso", (
+            "- [conceito] ENTRADA: existe caso concreto?",
+            "  - [regra] SE SIM: aplicar o controle difuso.",
+            "    - [jurisprudencia] RESULTADO: decisão fundamentada.",
+            "  - [pegadinha] ALERTA: não antecipar o resultado.",
+        ))
+
+        prompt = build_visual_map_specs(self.manifest, self.session_files)["controle"].prompt
+
+        self.assertIn("\n  - [regra] SE SIM", prompt)
+        self.assertIn("\n    - [jurisprudencia] RESULTADO", prompt)
+        self.assertIn("siblings have no arrows", prompt)
+        self.assertIn("no topic title or headline", prompt)
+
+    def test_visual_template_change_invalidates_content_addressed_cache(self):
+        first = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+
+        with patch("scripts.trilha_visual_maps.VISUAL_TEMPLATE_VERSION", "dashboard-modern-v3"):
+            changed = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+
+        self.assertNotEqual(first.source_hash, changed.source_hash)
+        self.assertNotEqual(first.expected_path, changed.expected_path)
+
     def test_loader_leaves_stale_content_addressed_cache_untouched(self):
         old_spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
         old_target = self.trail / old_spec.expected_path
@@ -199,6 +254,17 @@ class VisualMapTests(unittest.TestCase):
 
         self.assertEqual(asset.status, "invalid")
         self.assertIn("IEND", asset.error)
+
+    def test_loader_rejects_crc_valid_but_truncated_compressed_pixel_stream(self):
+        spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
+        target = self.trail / spec.expected_path
+        target.parent.mkdir(parents=True)
+        target.write_bytes(truncated_idat_png())
+
+        asset = load_visual_map_assets(self.trail, {"controle": spec})["controle"]
+
+        self.assertEqual(asset.status, "invalid")
+        self.assertIn("dados de imagem", asset.error)
 
     def test_loader_rejects_invalid_png_chunk_order_and_empty_image_data(self):
         spec = build_visual_map_specs(self.manifest, self.session_files)["controle"]
