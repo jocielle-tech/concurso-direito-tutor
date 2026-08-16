@@ -127,6 +127,7 @@ estudos/<trilha>/
 ├── materiais/{resumos,mapas-mentais,caderno-de-questoes}.md
 ├── revisoes/agenda.md
 ├── apostila/{apostila.md,apostila.html,apostila.pdf}
+├── assets/mapas/<topico>-<hash>/<source_hash>.png
 └── backups/
 ```
 

@@ -105,11 +105,32 @@ estudos/direito-constitucional/
 └── backups/
 ```
 
-| Saída | Uso |
+### Onde encontrar os outputs
+
+Todos os caminhos abaixo são relativos à raiz da trilha — por exemplo, `estudos/direito-constitucional/`. Ao pedir os arquivos no Codex, a skill informa essa raiz e os caminhos exatos gerados.
+
+| Caminho | Conteúdo e forma de acesso |
 | --- | --- |
+| `painel/indice.md` | Índice navegável da trilha. |
+| `painel/progresso.md` | Percentual global e andamento por módulo/tópico. |
+| `painel/agenda-de-revisoes.md` | Próximas revisões ordenadas. |
+| `modulos/.../topicos/.../sessoes/*.md` | Fonte canônica de cada sessão, com as 20 questões e feedbacks. |
+| `modulos/.../topicos/.../{resumo,mapa-mental,questoes}.md` | Materiais derivados do tópico. |
+| `materiais/{resumos,mapas-mentais,caderno-de-questoes}.md` | Consolidações para busca por tipo de material. |
+| `revisoes/agenda.md` | Agenda geral de revisão. |
 | `apostila/apostila.md` | Texto cumulativo para versionamento e leitura rápida. |
-| `apostila/apostila.html` | Dashboard autocontido: índice lateral fixo, links internos, tópico ativo sincronizado, progresso, questões em cartões e mapa visual ampliável. |
-| `apostila/apostila.pdf` | Caderno paginado para estudo ou impressão, com hierarquia visual moderna, mapa e algoritmo pesquisável. |
+| `apostila/apostila.html` | Dashboard autocontido: abra diretamente no navegador; todos os links e o índice lateral funcionam sem servidor. |
+| `apostila/apostila.pdf` | Caderno paginado para leitura, impressão ou compartilhamento. |
+| `assets/mapas/<topico>-<hash>/<source_hash>.png` | Mapas visuais nativos em cache; não editar manualmente. |
+| `backups/` | ZIPs criados antes de migrações de trilhas antigas. |
+
+Para visualizar o HTML por um endereço local, opcionalmente execute na raiz do repositório:
+
+```bash
+python3 -m http.server --directory estudos/direito-constitucional 8000
+```
+
+Depois acesse `http://localhost:8000/apostila/apostila.html`. O arquivo também pode ser aberto diretamente em `estudos/direito-constitucional/apostila/apostila.html`.
 
 Gere a árvore e os três formatos ao encerrar uma sessão concluída:
 
