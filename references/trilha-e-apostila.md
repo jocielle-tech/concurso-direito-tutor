@@ -18,7 +18,7 @@ python3 <skill-dir>/scripts/build_trilha.py --migrate <trail_dir>
 
 Só continuar após a migração terminar. Ela preserva IDs, estados e conteúdo, cria ZIP em `backups/` e é idempotente. Qualquer outro erro de `--check` exige correção antes de escrever arquivos.
 
-Use, para sessão nova, um manifesto com `question_target: 20` e caminho canônico:
+Ao começar uma sessão nova, usar `status: "in_progress"`, `question_target: 20`, `theory_briefing_version: 1` e caminho canônico:
 
 ```json
 {
@@ -36,7 +36,7 @@ Use, para sessão nova, um manifesto com `question_target: 20` e caminho canôni
       "id": "controle-difuso",
       "title": "Controle difuso",
       "weight": 1,
-      "status": "not_started",
+      "status": "in_progress",
       "sessions": ["s001"]
     }]
   }],
@@ -44,25 +44,28 @@ Use, para sessão nova, um manifesto com `question_target: 20` e caminho canôni
     "id": "s001",
     "title": "Controle difuso",
     "date": "<AAAA-MM-DD>",
-    "status": "not_started",
+    "status": "in_progress",
     "module_id": "constitucional",
     "topic_ids": ["controle-difuso"],
     "question_target": 20,
+    "theory_briefing_version": 1,
     "file": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md"
   }]
 }
 ```
 
-Sessões legadas sem `question_target` continuam legíveis; não adicionar o campo retroativamente fora da migração. Sem edital, usar `source: "provisional"`; quando ele chegar, recalibrar módulos e pesos sem apagar sessões ou estados.
+Sessões legadas sem `question_target` continuam legíveis. Sessões legadas sem `theory_briefing_version` também continuam válidas e não precisam de migração; não adicionar esses campos retroativamente. Sem edital, usar `source: "provisional"`; quando ele chegar, recalibrar módulos e pesos sem apagar sessões ou estados.
 
 ## Contrato da sessão principal
 
-1. Anunciar as 20 questões, os materiais organizados, o progresso e as três apostilas: Markdown, HTML interativo e PDF.
-2. Definir ou criar uma sessão com `question_target: 20`, abrangendo cada ID em `topic_ids` ao menos uma vez.
-3. Ensinar o núcleo e apresentar exatamente as **20 questões, de 1 a 20, em uma única prática**, sem gabarito, justificativa de alternativa ou correção intermediária.
-4. Esperar as 20 respostas. Se faltarem itens, informar apenas os números pendentes e esperar. Não encerrar nem publicar diagnóstico antecipado.
-5. Se o aluno abandonar explicitamente o restante, corrigir somente as respostas recebidas, registrar a sessão como `in_progress`, não concluir tópicos e não aumentar o progresso. A sessão só vira `completed` com as 20 respostas.
-6. Depois das 20 respostas, registrar feedbacks sequenciais de 1 a 20, um diagnóstico agregado posterior e a próxima revisão; então reconstruir todas as saídas.
+1. Anunciar a preparação teórica obrigatória, as 20 questões, os materiais organizados, o progresso e as três apostilas: Markdown, HTML interativo e PDF.
+2. Definir ou retomar a sessão como `in_progress`, com `question_target: 20` e `theory_briefing_version: 1`, abrangendo cada ID em `topic_ids` ao menos uma vez. Não elevar o progresso.
+3. Planejar uma matriz interna de cobertura para as 20 questões e redigir uma preparação teórica detalhada, adaptada ao nível e à complexidade do tema.
+4. Exibir somente a preparação teórica. Ela deve ensinar todo o substrato necessário e não revelar enunciados, alternativas ou gabaritos, nem associar conteúdo a números de questões.
+5. Esperar confirmação explícita de leitura. Responder dúvidas sem avançar e pedir a confirmação novamente; não permitir que uma sessão principal pule essa etapa.
+6. Após a confirmação, apresentar exatamente as **20 questões, de 1 a 20, em uma única prática**, sem gabarito, justificativa de alternativa ou correção intermediária.
+7. Esperar as 20 respostas. Se faltarem itens, informar apenas os números pendentes e esperar. Se o aluno abandonar explicitamente o restante, corrigir somente as respostas recebidas, manter `in_progress`, não concluir tópicos e não aumentar o progresso.
+8. Depois das 20 respostas, registrar feedbacks sequenciais de 1 a 20, um diagnóstico agregado posterior e a próxima revisão; então reconstruir todas as saídas e marcar a sessão como `completed`.
 
 Para sessão concluída, usar o formato abaixo. Todo `Tópico` deve ser um ID de `session.topic_ids`; cada tópico da sessão precisa aparecer em pelo menos uma questão.
 
@@ -70,7 +73,26 @@ Para sessão concluída, usar o formato abaixo. Todo `Tópico` deve ser um ID de
 # <sessions[].title>
 
 ## Conteúdo principal
-<explicação, lei seca, exemplos e pegadinhas>
+
+### Objetivos de aprendizagem
+<o que o candidato dominará ao terminar a leitura>
+
+### Essencial para a prova
+<núcleo de maior incidência e distinções indispensáveis>
+
+### Fundamentos e conceitos
+<conceitos, base normativa e vocabulário técnico>
+
+### Regras, requisitos e efeitos
+<regra, elementos, competências, procedimentos, prazos e efeitos aplicáveis>
+
+<!-- Acrescentar exceções, controvérsias, jurisprudência e aprofundamento quando pertinentes. -->
+
+### Exemplos e pegadinhas
+<casos concretos, confusões previsíveis e estratégia de prova>
+
+### Checklist antes das questões
+<itens verificáveis que cobrem a matriz interna sem antecipar respostas>
 
 ## Resumo estratégico
 - <5 a 8 itens>
@@ -110,6 +132,8 @@ Para sessão concluída, usar o formato abaixo. Todo `Tópico` deve ser um ID de
 ```
 
 Usar no máximo três níveis no mapa e somente: `conceito` azul `#2563EB`, `regra` verde `#16A34A`, `excecao` amarelo `#D97706`, `pegadinha` vermelho `#DC2626` e `jurisprudencia` roxo `#7C3AED`.
+
+Quando `theory_briefing_version` for `1`, os seis subtítulos centrais acima são obrigatórios, precisam estar nessa ordem e ter conteúdo. A extensão é adaptativa; os blocos adicionais de exceções, controvérsias, jurisprudência e aprofundamento entram quando forem pertinentes. O mesmo `Conteúdo principal` alimenta a tela, o arquivo canônico, os resumos por tópico e as três apostilas.
 
 ## Árvore híbrida e saídas
 
