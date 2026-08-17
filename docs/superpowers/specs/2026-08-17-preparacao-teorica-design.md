@@ -22,4 +22,3 @@ A preparação integra a sessão canônica, os resumos por tópico, `materiais/r
 ## Qualidade e segurança jurídica
 
 A extensão é adaptativa. A teoria deve cobrir todos os conhecimentos avaliados, distinguir regra, exceção, controvérsia e estratégia de prova, citar fontes oficiais e declarar limitações. Não pode antecipar enunciados, gabaritos ou correspondências entre conteúdo e número de questão.
-
