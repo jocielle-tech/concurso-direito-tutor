@@ -10,6 +10,7 @@ from pypdf import PdfReader
 
 from scripts.trilha_pdf import render_pdf
 from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
+from tests.test_build_trilha import detailed_session
 from tests.test_visual_maps import algorithm_session, truncated_idat_png
 from tests.trilha_support import png_bytes
 
@@ -198,6 +199,17 @@ class PdfOutputTests(unittest.TestCase):
         self.assertIn("Trilha de Direito Constitucional", text)
         self.assertIn("Questão 20", text)
         self.assertTrue(any("/Annots" in page for page in reader.pages))
+
+    def test_pdf_renders_theory_subheadings_before_questions_without_markers(self):
+        manifest, session_files, _assets = self.ready_visual_fixture()
+        manifest["sessions"][0]["theory_briefing_version"] = 1
+        session_files["s001"] = detailed_session("Controle difuso")
+
+        text = self.pdf_text(render_pdf(manifest, session_files))
+
+        self.assertIn("Objetivos de aprendizagem", text)
+        self.assertNotIn("### Objetivos de aprendizagem", text)
+        self.assertLess(text.index("Objetivos de aprendizagem"), text.index("Questão 1"))
 
     def test_build_generates_identical_pdf_bytes_twice(self):
         first = self.run_build()

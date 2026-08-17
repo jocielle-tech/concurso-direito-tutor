@@ -244,6 +244,11 @@ def render_pdf(manifest, session_files, visual_maps=None):
         leading=13, textColor=colors.HexColor("#1D4ED8"), spaceBefore=8, spaceAfter=5,
     ))
     styles.add(ParagraphStyle(
+        name="TheoryHeading", parent=styles["Heading4"], fontName="Helvetica-Bold", fontSize=9.8,
+        leading=12.5, textColor=colors.HexColor("#4338CA"), leftIndent=5,
+        borderWidth=0, borderPadding=3, spaceBefore=7, spaceAfter=3, keepWithNext=1,
+    ))
+    styles.add(ParagraphStyle(
         name="QuestionTitle", parent=styles["Heading3"], fontName="Helvetica-Bold", fontSize=10.5,
         leading=13, textColor=colors.HexColor("#6D28D9"), spaceBefore=8, spaceAfter=2,
     ))
@@ -387,7 +392,16 @@ def render_pdf(manifest, session_files, visual_maps=None):
                         story.append(Paragraph(_paragraph_markup(section_name), styles["SectionLabel"]))
                         for line in section.splitlines():
                             if line.strip():
-                                story.append(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]))
+                                stripped = line.strip()
+                                if section_name == "Conteúdo principal" and stripped.startswith("### "):
+                                    story.append(Paragraph(
+                                        _paragraph_markup(stripped[4:]), styles["TheoryHeading"]
+                                    ))
+                                else:
+                                    story.append(Paragraph(
+                                        _paragraph_markup(stripped.lstrip("-* ").strip()),
+                                        styles["TrailBody"],
+                                    ))
                 questions = sections.get("Questões e feedback", "")
                 if questions:
                     story.append(Paragraph("Questões e feedback", styles["SectionLabel"]))

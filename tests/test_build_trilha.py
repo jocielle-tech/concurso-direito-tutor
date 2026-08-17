@@ -616,5 +616,11 @@ Em sete dias.
 """
 
 
+def detailed_session(title, question_count=20, topic_ids=("controle",)):
+    return valid_session(title, question_count, topic_ids).replace(
+        "Texto de estudo.", detailed_theory()
+    )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,7 +16,7 @@ from scripts.build_trilha import load_and_validate
 from scripts.trilha_visual_maps import build_visual_map_specs, load_visual_map_assets
 from tests.trilha_support import png_bytes
 
-from tests.test_build_trilha import valid_session
+from tests.test_build_trilha import detailed_session, valid_session
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -604,6 +604,29 @@ raise SystemExit(main(['--check', sys.argv[1]]))
             self.assertIn("Prioridade: consolidar competência.", agenda)
             self.assertNotIn("2026-08-10", agenda)
         self.assert_every_local_link_resolves()
+
+    def test_topic_and_consolidated_summaries_include_theory_before_strategy(self):
+        manifest_path = self.trail / "trilha.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["sessions"][0]["theory_briefing_version"] = 1
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        session_path = self.trail / manifest["sessions"][0]["file"]
+        session_path.write_text(detailed_session("Controle difuso"), encoding="utf-8")
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for relative in (
+            "modulos/01-direito-constitucional/topicos/01-controle-difuso/resumo.md",
+            "materiais/resumos.md",
+        ):
+            material = (self.trail / relative).read_text(encoding="utf-8")
+            self.assertIn("### Objetivos de aprendizagem", material)
+            self.assertIn("### Resumo estratégico", material)
+            self.assertLess(
+                material.index("### Objetivos de aprendizagem"),
+                material.index("### Resumo estratégico"),
+            )
 
     def test_agendas_sort_by_review_date_then_stable_priority(self):
         manifest_path = self.trail / "trilha.json"

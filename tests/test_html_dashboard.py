@@ -3,6 +3,7 @@ from html.parser import HTMLParser
 
 from scripts.trilha_html import FOCUS_COLORS, HERO_COLORS, PALETTE, anchor_id, render_html
 from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
+from tests.test_build_trilha import detailed_session
 from tests.test_visual_maps import algorithm_session
 from tests.trilha_support import png_bytes
 
@@ -97,6 +98,20 @@ class HtmlDashboardTests(unittest.TestCase):
         self.assertRegex(html, r'src="data:image/png;base64,[A-Za-z0-9+/=]+"')
         self.assertNotIn("https://fonts.", html)
         self.assertNotIn("<script src=", html)
+
+    def test_theory_briefing_has_visual_hierarchy_and_precedes_questions(self):
+        self.session_files["s001"] = detailed_session("Controle difuso")
+
+        html = render_html(self.manifest, self.session_files, {})
+
+        self.assertIn('class="study-card theory-briefing"', html)
+        self.assertIn(
+            '<h5 class="theory-section-title">Objetivos de aprendizagem</h5>', html
+        )
+        self.assertLess(
+            html.index('class="study-card theory-briefing"'),
+            html.index('class="question-card"'),
+        )
 
     def test_missing_or_invalid_image_uses_algorithmic_html_fallback(self):
         for status in ("missing", "invalid"):

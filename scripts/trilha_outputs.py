@@ -167,7 +167,12 @@ def build_output_bundle(trail, manifest, session_files, apostila_md, apostila_ht
                 else:
                     outputs[canonical] = session_files[session["id"]].encode("utf-8")
                 sections = _sections(session_files[session["id"]])
-                summaries.append(f"## {session['title']}\n\n{sections.get('Resumo estratégico', 'Sem resumo registrado.')}")
+                content = sections.get("Conteúdo principal", "Sem preparação teórica registrada.")
+                strategic = sections.get("Resumo estratégico", "Sem resumo estratégico registrado.")
+                summaries.append(
+                    f"## {session['title']}\n\n{content}\n\n"
+                    f"### Resumo estratégico\n\n{strategic}"
+                )
                 maps.append(f"## {session['title']}\n\n{sections.get('Mapa mental', 'Sem mapa mental registrado.')}")
                 blocks = _question_blocks(sections.get("Questões e feedback", ""), topic["id"])
                 if blocks:
