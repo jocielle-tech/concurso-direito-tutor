@@ -208,6 +208,70 @@ class BuildTrilhaTests(unittest.TestCase):
         result = self.run_build("--check")
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_theory_briefing_version_is_opt_in_and_requires_integer_one(self):
+        for value in (True, 1.0, 2, "1"):
+            with self.subTest(value=value):
+                self.write_valid_trail()
+                manifest = self.valid_manifest()
+                manifest["sessions"][0]["theory_briefing_version"] = value
+                self.write_manifest(manifest)
+
+                result = self.run_build("--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("theory_briefing_version deve ser o inteiro 1", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_versioned_in_progress_session_requires_complete_theory_briefing(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["sessions"][1].update(status="in_progress", theory_briefing_version=1)
+        manifest["modules"][0]["topics"][1]["status"] = "in_progress"
+        self.write_manifest(manifest)
+        self.write_session(
+            "002.md",
+            "# Direitos fundamentais\n\n## Conteúdo principal\n\n"
+            "### Objetivos de aprendizagem\n\nCompreender o núcleo do tema.\n",
+        )
+
+        result = self.run_build("--check")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("preparação teórica sem subtítulos obrigatórios", result.stderr)
+        self.assertIn("Essencial para a prova", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_versioned_theory_rejects_empty_or_out_of_order_blocks(self):
+        cases = {
+            "empty": detailed_theory().replace(
+                "### Fundamentos e conceitos\n\nBase conceitual verificada.",
+                "### Fundamentos e conceitos\n\n",
+            ),
+            "out_of_order": detailed_theory().replace(
+                "### Objetivos de aprendizagem\n\nCompreender o núcleo do tema.\n\n"
+                "### Essencial para a prova\n\nDominar a regra central.",
+                "### Essencial para a prova\n\nDominar a regra central.\n\n"
+                "### Objetivos de aprendizagem\n\nCompreender o núcleo do tema.",
+            ),
+        }
+        for name, theory in cases.items():
+            with self.subTest(name=name):
+                self.write_valid_trail()
+                manifest = self.valid_manifest()
+                manifest["sessions"][1].update(status="in_progress", theory_briefing_version=1)
+                manifest["modules"][0]["topics"][1]["status"] = "in_progress"
+                self.write_manifest(manifest)
+                self.write_session(
+                    "002.md",
+                    f"# Direitos fundamentais\n\n## Conteúdo principal\n\n{theory}\n",
+                )
+
+                result = self.run_build("--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("preparação teórica", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
     def test_question_feedback_parser_returns_questions_and_diagnosis(self):
         questions, diagnosis = build_trilha.parse_question_feedback(feedback_section(2, ("controle", "direitos")))
         self.assertEqual([(question.number, question.topic_id) for question in questions], [
@@ -487,6 +551,32 @@ def set_value(value, path, replacement):
     for key in path[:-1]:
         value = value[key]
     value[path[-1]] = replacement
+
+
+def detailed_theory():
+    return """### Objetivos de aprendizagem
+
+Compreender o núcleo do tema.
+
+### Essencial para a prova
+
+Dominar a regra central.
+
+### Fundamentos e conceitos
+
+Base conceitual verificada.
+
+### Regras, requisitos e efeitos
+
+Aplicação, requisitos e consequências.
+
+### Exemplos e pegadinhas
+
+Exemplo concreto e erro previsível.
+
+### Checklist antes das questões
+
+Confirmar regra, exceção e aplicação."""
 
 
 def valid_session(title, question_count=20, topic_ids=("controle",)):

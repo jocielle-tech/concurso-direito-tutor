@@ -45,6 +45,14 @@ QUESTION_FIELDS = (
 )
 TARGETED_QUESTION_FIELDS = QUESTION_FIELDS + ("Tópico",)
 DIAGNOSIS_FIELDS = ("Acertos", "Padrões de erro", "Prioridade", "Próxima revisão")
+THEORY_BRIEFING_HEADINGS = (
+    "Objetivos de aprendizagem",
+    "Essencial para a prova",
+    "Fundamentos e conceitos",
+    "Regras, requisitos e efeitos",
+    "Exemplos e pegadinhas",
+    "Checklist antes das questões",
+)
 LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
 MIGRATION_REQUIRED_EXIT = 3
@@ -189,6 +197,42 @@ def validate_targeted_question_feedback(text, session):
         raise ValidationError(f"sessão '{session_id}': diagnóstico agregado obrigatório ausente")
 
 
+def validate_theory_briefing(text, session):
+    sections = session_sections(text, session["title"])
+    content = sections.get("Conteúdo principal")
+    if content is None:
+        raise ValidationError(
+            f"sessão '{session['id']}': preparação teórica sem seção Conteúdo principal"
+        )
+    headings = list(re.finditer(r"^###\s+(.+?)\s*$", content, re.MULTILINE))
+    occurrences = {
+        name: [heading for heading in headings if heading.group(1) == name]
+        for name in THEORY_BRIEFING_HEADINGS
+    }
+    missing = [name for name, matches in occurrences.items() if not matches]
+    if missing:
+        raise ValidationError(
+            f"sessão '{session['id']}': preparação teórica sem subtítulos obrigatórios: "
+            + ", ".join(missing)
+        )
+    duplicated = [name for name, matches in occurrences.items() if len(matches) > 1]
+    if duplicated:
+        raise ValidationError(
+            f"sessão '{session['id']}': preparação teórica com subtítulos duplicados: "
+            + ", ".join(duplicated)
+        )
+    required_matches = [occurrences[name][0] for name in THEORY_BRIEFING_HEADINGS]
+    if [match.start() for match in required_matches] != sorted(match.start() for match in required_matches):
+        raise ValidationError(f"sessão '{session['id']}': preparação teórica fora da ordem obrigatória")
+    for match in required_matches:
+        next_heading = next((item for item in headings if item.start() > match.start()), None)
+        end = next_heading.start() if next_heading else len(content)
+        if not content[match.end():end].strip():
+            raise ValidationError(
+                f"sessão '{session['id']}': preparação teórica com bloco vazio: {match.group(1)}"
+            )
+
+
 def map_validation_error(map_lines):
     previous_level = None
     for line in map_lines:
@@ -313,6 +357,11 @@ def load_and_validate(trail):
         target = session.get("question_target")
         if target is not None and (type(target) is not int or target != 20):
             raise ValidationError(f"sessão '{session['id']}': question_target deve ser o inteiro 20")
+        briefing_version = session.get("theory_briefing_version")
+        if briefing_version is not None and (type(briefing_version) is not int or briefing_version != 1):
+            raise ValidationError(
+                f"sessão '{session['id']}': theory_briefing_version deve ser o inteiro 1"
+            )
         if (not session["topic_ids"]
                 or any(not isinstance(item, str) or not item for item in session["topic_ids"])
                 or len(session["topic_ids"]) != len(set(session["topic_ids"]))):
@@ -327,6 +376,8 @@ def load_and_validate(trail):
             raise ValidationError("caminhos de sessões duplicados")
         session_paths.add(path)
         text = path.read_text(encoding="utf-8")
+        if briefing_version == 1 and session["status"] != "not_started":
+            validate_theory_briefing(text, session)
         if session["status"] == "completed":
             validate_completed_session(text, session)
         session_files[session["id"]] = text
