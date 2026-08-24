@@ -102,7 +102,29 @@ def _question_groups(text):
         question = re.fullmatch(r"Questão\s+\d+", heading.group(1))
         if question:
             lines = [line.strip() for line in text[heading.end():end].splitlines() if line.strip()]
-            yield question.group(0), lines
+            subheadings = [
+                (line_index, line[5:].strip())
+                for line_index, line in enumerate(lines)
+                if line.startswith("#### ")
+            ]
+            if [name for _line_index, name in subheadings] != [
+                "Pergunta", "Alternativas", "Resposta e feedback"
+            ]:
+                yield question.group(0), {"legacy": lines}
+                continue
+            parts = {}
+            for position, (line_index, name) in enumerate(subheadings):
+                part_end = (
+                    subheadings[position + 1][0]
+                    if position + 1 < len(subheadings) else len(lines)
+                )
+                parts[name] = lines[line_index + 1:part_end]
+            yield question.group(0), {
+                "metadata": lines[:subheadings[0][0]],
+                "question": parts["Pergunta"],
+                "alternatives": parts["Alternativas"],
+                "feedback": parts["Resposta e feedback"],
+            }
 
 
 def _trail_progress(manifest):
@@ -251,6 +273,16 @@ def render_pdf(manifest, session_files, visual_maps=None):
     styles.add(ParagraphStyle(
         name="QuestionTitle", parent=styles["Heading3"], fontName="Helvetica-Bold", fontSize=10.5,
         leading=13, textColor=colors.HexColor("#6D28D9"), spaceBefore=8, spaceAfter=2,
+    ))
+    styles.add(ParagraphStyle(
+        name="QuestionPartTitle", parent=styles["Heading4"], fontName="Helvetica-Bold",
+        fontSize=9.2, leading=11.5, textColor=colors.HexColor("#4338CA"),
+        spaceBefore=5, spaceAfter=2, keepWithNext=1,
+    ))
+    styles.add(ParagraphStyle(
+        name="QuestionOption", parent=styles["BodyText"], fontName="Helvetica",
+        fontSize=9, leading=12.5, textColor=colors.HexColor("#1F2937"),
+        leftIndent=5, firstLineIndent=-5, spaceAfter=3,
     ))
     styles.add(ParagraphStyle(
         name="FeedbackText", parent=styles["BodyText"], fontName="Helvetica", fontSize=8.8,
@@ -405,16 +437,46 @@ def render_pdf(manifest, session_files, visual_maps=None):
                 questions = sections.get("Questões e feedback", "")
                 if questions:
                     story.append(Paragraph("Questões e feedback", styles["SectionLabel"]))
-                    for question, lines in _question_groups(questions):
-                        first_lines, remaining = lines[:2], lines[2:]
-                        intro = [Paragraph(_paragraph_markup(question), styles["QuestionTitle"])]
-                        intro.extend(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]) for line in first_lines)
-                        story.append(KeepTogether(intro))
-                        if remaining:
-                            feedback = "<br/>".join(_paragraph_markup(line.lstrip("-* ").strip()) for line in remaining)
+                    for question, group in _question_groups(questions):
+                        legacy = group.get("legacy")
+                        if legacy is not None:
+                            first_lines, remaining = legacy[:2], legacy[2:]
+                            intro = [Paragraph(_paragraph_markup(question), styles["QuestionTitle"])]
+                            intro.extend(Paragraph(_paragraph_markup(line.lstrip("-* ").strip()), styles["TrailBody"]) for line in first_lines)
+                            story.append(KeepTogether(intro))
+                            feedback_lines = remaining
+                        else:
+                            prompt = group["question"]
+                            intro = [Paragraph(_paragraph_markup(question), styles["QuestionTitle"])]
+                            intro.extend(
+                                Paragraph(
+                                    _paragraph_markup(line.lstrip("-* ").strip()),
+                                    styles["TrailBody"],
+                                )
+                                for line in group["metadata"]
+                            )
+                            intro.append(Paragraph("Pergunta", styles["QuestionPartTitle"]))
+                            if prompt:
+                                intro.append(Paragraph(_paragraph_markup(prompt[0]), styles["TrailBody"]))
+                            story.append(KeepTogether(intro))
+                            for line in prompt[1:]:
+                                story.append(Paragraph(_paragraph_markup(line), styles["TrailBody"]))
+                            story.append(Paragraph("Alternativas", styles["QuestionPartTitle"]))
+                            for line in group["alternatives"]:
+                                story.append(Paragraph(
+                                    _paragraph_markup(line.lstrip("-* ").strip()),
+                                    styles["QuestionOption"],
+                                ))
+                            story.append(Paragraph("Resposta e feedback", styles["QuestionPartTitle"]))
+                            feedback_lines = group["feedback"]
+                        if feedback_lines:
+                            feedback = "<br/>".join(
+                                _paragraph_markup(line.lstrip("-* ").strip())
+                                for line in feedback_lines
+                            )
                             card = Table([[Paragraph(feedback, styles["FeedbackText"])]], colWidths=[document.width])
                             card.setStyle(TableStyle([
-                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FAF5FF")),
                                 ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#DDD6FE")),
                                 ("LINEBEFORE", (0, 0), (0, -1), 2.5, colors.HexColor("#8B5CF6")),
                                 ("LEFTPADDING", (0, 0), (-1, -1), 8),

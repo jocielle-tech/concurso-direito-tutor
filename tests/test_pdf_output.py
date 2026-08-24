@@ -10,7 +10,7 @@ from pypdf import PdfReader
 
 from scripts.trilha_pdf import render_pdf
 from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
-from tests.test_build_trilha import detailed_session
+from tests.test_build_trilha import detailed_session, valid_session
 from tests.test_visual_maps import algorithm_session, truncated_idat_png
 from tests.trilha_support import png_bytes
 
@@ -210,6 +210,27 @@ class PdfOutputTests(unittest.TestCase):
         self.assertIn("Objetivos de aprendizagem", text)
         self.assertNotIn("### Objetivos de aprendizagem", text)
         self.assertLess(text.index("Objetivos de aprendizagem"), text.index("Questão 1"))
+
+    def test_pdf_renders_complete_question_before_answer_and_feedback(self):
+        manifest, session_files, _assets = self.ready_visual_fixture()
+        session_files["s001"] = valid_session(
+            "Controle difuso", include_question_content=True
+        )
+
+        text = self.pdf_text(render_pdf(manifest, session_files))
+
+        question = text.index("Pergunta")
+        alternatives = text.index("Alternativas", question)
+        feedback = text.index("Resposta e feedback", alternatives)
+        result = text.index("Resultado:", feedback)
+        self.assertLess(question, alternatives)
+        self.assertLess(alternatives, feedback)
+        self.assertLess(feedback, result)
+        self.assertIn("Qual regra jurídica se aplica à situação 1?", text)
+        self.assertIn("E) Não existe revisão possível.", text)
+        self.assertNotIn("#### Pergunta", text)
+        self.assertNotIn("#### Alternativas", text)
+        self.assertNotIn("#### Resposta e feedback", text)
 
     def test_build_generates_identical_pdf_bytes_twice(self):
         first = self.run_build()
