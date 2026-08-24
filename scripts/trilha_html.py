@@ -173,7 +173,7 @@ def _visual_map_html(topic, asset):
     return ""
 
 
-def _question_card(title, lines, local_fragments):
+def _question_fields(lines, local_fragments):
     fields = []
     for line in lines:
         stripped = line.strip()
@@ -189,7 +189,64 @@ def _question_card(title, lines, local_fragments):
                 fields.append(f'<p>{safe_inline(stripped[2:], local_fragments)}</p>')
         elif stripped:
             fields.append(f'<p>{safe_inline(stripped, local_fragments)}</p>')
-    return f'<section class="question-card"><h5>{safe_inline(title, local_fragments)}</h5>{"".join(fields)}</section>'
+    return "".join(fields)
+
+
+def _question_parts(lines):
+    headings = [
+        (index, line.strip()[5:].strip())
+        for index, line in enumerate(lines)
+        if line.strip().startswith("#### ")
+    ]
+    if [name for _index, name in headings] != [
+        "Pergunta", "Alternativas", "Resposta e feedback"
+    ]:
+        return None
+    parts = {}
+    for position, (index, name) in enumerate(headings):
+        end = headings[position + 1][0] if position + 1 < len(headings) else len(lines)
+        parts[name] = lines[index + 1:end]
+    return lines[:headings[0][0]], parts
+
+
+def _question_prose(lines, local_fragments):
+    return "".join(
+        f'<p>{safe_inline(line.strip(), local_fragments)}</p>'
+        for line in lines if line.strip()
+    )
+
+
+def _question_options(lines, local_fragments):
+    items = []
+    option = re.compile(r"^[-*]\s+((?:[A-Z]|Certo|Errado)[).:])\s+(\S.*)$", re.IGNORECASE)
+    for line in lines:
+        match = option.match(line.strip())
+        if match:
+            items.append(
+                f'<li><strong>{safe_inline(match.group(1), local_fragments)}</strong> '
+                f'{safe_inline(match.group(2), local_fragments)}</li>'
+            )
+        elif line.strip():
+            items.append(f'<li>{safe_inline(line.strip(), local_fragments)}</li>')
+    return f'<ul>{"".join(items)}</ul>'
+
+
+def _question_card(title, lines, local_fragments):
+    structured = _question_parts(lines)
+    if structured is None:
+        body = _question_fields(lines, local_fragments)
+    else:
+        metadata, parts = structured
+        body = (
+            f'{_question_fields(metadata, local_fragments)}'
+            '<div class="question-prompt"><h6>Pergunta</h6>'
+            f'{_question_prose(parts["Pergunta"], local_fragments)}</div>'
+            '<div class="question-options"><h6>Alternativas</h6>'
+            f'{_question_options(parts["Alternativas"], local_fragments)}</div>'
+            '<div class="question-feedback"><h6>Resposta e feedback</h6>'
+            f'{_question_fields(parts["Resposta e feedback"], local_fragments)}</div>'
+        )
+    return f'<section class="question-card"><h5>{safe_inline(title, local_fragments)}</h5>{body}</section>'
 
 
 def html_session(text, session_anchor, local_fragments):
@@ -368,7 +425,7 @@ a {{ color:#175CD3; }} a:focus-visible, button:focus-visible {{ outline:3px soli
 .metric-grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.8rem; margin-top:1.4rem; }} .metric-card {{ min-width:0; padding:1rem; border:1px solid rgba(255,255,255,.3); border-radius:.85rem; background:rgba(255,255,255,.14); }} .metric-card span {{ display:block; font-size:.82rem; }} .metric-card strong {{ display:block; margin-top:.2rem; font-size:1.1rem; overflow-wrap:anywhere; }}
 #trail-layout {{ display:grid; grid-template-columns:minmax(13rem,18rem) minmax(0,1fr); gap:2rem; max-width:1200px; margin:0 auto; padding:1.5rem; }} #trail-sidebar {{ position:sticky; top:1rem; align-self:start; max-height:calc(100vh - 2rem); overflow:auto; padding:1rem; border:1px solid var(--border); border-radius:.85rem; background:var(--surface); box-shadow:var(--shadow); }} #trail-sidebar ul {{ padding-left:1rem; }} #trail-sidebar a {{ color:#175CD3; }} .module-label {{ display:block; margin-top:.5rem; font-weight:700; color:var(--ink) !important; }} [data-topic-link].is-active {{ color:var(--ink); font-weight:700; }} [data-topic-link].is-active::after {{ content:" — tópico atual"; }} #sidebar-toggle {{ display:none; }}
 #trail-content {{ min-width:0; }} [data-topic-section] {{ scroll-margin-top:1rem; margin-bottom:2.6rem; }} .module-section > h2 {{ margin:0 0 1rem; font-size:1.65rem; }} .topic-heading {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; }} .topic-heading h3,.session-title {{ margin:1.4rem 0 .7rem; }} .status-chip,.question-chip {{ display:inline-block; padding:.2rem .55rem; border-radius:999px; background:#E0EAFF; color:#00359E; font-size:.82rem; font-weight:700; text-transform:capitalize; }} .status-completed {{ background:#DCFCE7; color:#14532D; }} .status-in_progress {{ background:#FEF3C7; color:#78350F; }}
-.study-card,.visual-map-card {{ margin:1rem 0; padding:1.15rem; border:1px solid var(--border); border-radius:1rem; background:var(--surface); box-shadow:var(--shadow); }} .study-card h4 {{ margin:0 0 .75rem; }} .study-card p,.question-card p {{ margin:.5rem 0; }} .theory-briefing {{ border-top:4px solid var(--blue); background:linear-gradient(180deg,#F0F9FF 0,#FFFFFF 8rem); }} .theory-section-title {{ margin:1.2rem 0 .45rem; padding-left:.7rem; border-left:3px solid var(--violet); color:#312E81; font-size:1rem; }} .question-card {{ margin:.85rem 0; padding:1rem; border-left:4px solid var(--violet); border-radius:.7rem; background:#F9FAFF; }} .question-card h5 {{ margin:0 0 .6rem; font-size:1rem; }} .question-field {{ color:var(--muted); }}
+.study-card,.visual-map-card {{ margin:1rem 0; padding:1.15rem; border:1px solid var(--border); border-radius:1rem; background:var(--surface); box-shadow:var(--shadow); }} .study-card h4 {{ margin:0 0 .75rem; }} .study-card p,.question-card p {{ margin:.5rem 0; }} .theory-briefing {{ border-top:4px solid var(--blue); background:linear-gradient(180deg,#F0F9FF 0,#FFFFFF 8rem); }} .theory-section-title {{ margin:1.2rem 0 .45rem; padding-left:.7rem; border-left:3px solid var(--violet); color:#312E81; font-size:1rem; }} .question-card {{ margin:.85rem 0; padding:1rem; border-left:4px solid var(--violet); border-radius:.7rem; background:#F9FAFF; }} .question-card h5 {{ margin:0 0 .6rem; font-size:1rem; }} .question-card h6 {{ margin:.2rem 0 .55rem; color:#312E81; font-size:.94rem; }} .question-prompt,.question-options,.question-feedback {{ margin:.75rem 0; padding:.85rem 1rem; border-radius:.65rem; }} .question-prompt {{ background:#EEF2FF; border-left:4px solid #4F46E5; }} .question-options {{ background:#F8FAFC; border:1px solid #E2E8F0; }} .question-options ul {{ margin:.25rem 0 0; padding:0; list-style:none; }} .question-options li {{ margin:.45rem 0; }} .question-feedback {{ background:#FAF5FF; border-left:4px solid #8B5CF6; }} .question-field {{ color:var(--muted); }}
 .progress {{ height:.75rem; overflow:hidden; border-radius:999px; background:#DDE3EE; }} .progress > span {{ display:block; height:100%; background:linear-gradient(90deg,var(--violet),var(--blue)); }} .progress-caption {{ margin:.35rem 0 .85rem; color:var(--muted); font-size:.88rem; }} .progress-module {{ max-width:34rem; }} .progress-topic {{ max-width:24rem; }} .mind-map {{ padding-left:1.2rem; }} .map-item {{ margin:.35rem 0; border-left:.35rem solid; padding-left:.6rem; }}
 .visual-map-card {{ overflow:hidden; }} .map-open {{ display:block; width:100%; padding:0; border:0; border-radius:.75rem; background:transparent; cursor:zoom-in; }} .map-open img {{ display:block; width:100%; height:auto; border-radius:.75rem; }} .visual-map-card figcaption {{ margin-top:.75rem; color:var(--muted); font-size:.9rem; }} .algorithm-flow {{ margin-top:1rem; }} .algorithm-caption {{ margin:0 0 .45rem; font-weight:700; color:var(--muted); }} .algorithm-flow ol {{ display:grid; gap:.55rem; margin:0; padding:0; list-style:none; }} .algorithm-node {{ padding:.7rem .8rem; border:1px solid var(--border); border-radius:.65rem; background:#fff; }} .algorithm-decision {{ border-color:#7C3AED; background:#F5F3FF; }} .algorithm-alert {{ border-color:#B42318; background:#FEF3F2; }}
 dialog {{ width:min(92vw,1100px); max-height:92vh; padding:0; border:0; border-radius:1rem; color:var(--ink); box-shadow:0 24px 70px rgba(16,24,40,.35); }} dialog::backdrop {{ background:rgba(16,24,40,.65); }} .dialog-toolbar {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.25rem; }} .dialog-toolbar h2 {{ margin:0; font-size:1.15rem; }} [data-map-close] {{ width:2.4rem; height:2.4rem; border:1px solid var(--border); border-radius:50%; background:#fff; color:var(--ink); font-size:1.4rem; cursor:pointer; }} #map-dialog-image {{ display:block; max-width:100%; max-height:calc(92vh - 5rem); margin:0 auto 1rem; }}
@@ -383,7 +440,7 @@ dialog {{ width:min(92vw,1100px); max-height:92vh; padding:0; border:0; border-r
 }}
 @media (prefers-reduced-motion: reduce) {{ html {{ scroll-behavior: auto; }} }}
 @media (prefers-reduced-motion: reduce) {{ *,*::before,*::after {{ animation-duration:.01ms !important; transition-duration:.01ms !important; }} }}
-@media print {{ body {{ background:#fff; }} #dashboard-hero {{ max-width:none; padding:0; color:#000; background:none; }} #trail-sidebar,#sidebar-toggle {{ display:none !important; }} #trail-layout {{ display:block; max-width:none; padding:0; }} .metric-grid {{ grid-template-columns:repeat(4,1fr); }} .metric-card,.study-card,.visual-map-card {{ box-shadow:none; }} .map-open {{ cursor:default; }} .no-js-map-link {{ display:none; }} a {{ color:#000; text-decoration:none; }} }}
+@media print {{ body {{ background:#fff; }} #dashboard-hero {{ max-width:none; padding:0; color:#000; background:none; }} #trail-sidebar,#sidebar-toggle {{ display:none !important; }} #trail-layout {{ display:block; max-width:none; padding:0; }} .metric-grid {{ grid-template-columns:repeat(4,1fr); }} .metric-card,.study-card,.visual-map-card {{ box-shadow:none; }} .question-card h5,.question-card h6 {{ break-after:avoid-page; }} .question-options li {{ break-inside:avoid; }} .map-open {{ cursor:default; }} .no-js-map-link {{ display:none; }} a {{ color:#000; text-decoration:none; }} }}
 </style></head><body>
 <header id="dashboard-hero"><h1>{html.escape(manifest['title'])}</h1>{recalibrated}<p>Roteiro de estudo, revisões e questões com feedback em uma apostila navegável.</p>{_progress_indicator("global", "global", "Progresso global", overall)}<div class="metric-grid">{metric_html}</div></header>
 <button id="sidebar-toggle" type="button" aria-controls="trail-sidebar" aria-expanded="false">Índice</button>

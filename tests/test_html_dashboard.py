@@ -3,7 +3,7 @@ from html.parser import HTMLParser
 
 from scripts.trilha_html import FOCUS_COLORS, HERO_COLORS, PALETTE, anchor_id, render_html
 from scripts.trilha_visual_maps import VisualMapAsset, build_visual_map_specs
-from tests.test_build_trilha import detailed_session
+from tests.test_build_trilha import detailed_session, valid_session
 from tests.test_visual_maps import algorithm_session
 from tests.trilha_support import png_bytes
 
@@ -112,6 +112,35 @@ class HtmlDashboardTests(unittest.TestCase):
             html.index('class="study-card theory-briefing"'),
             html.index('class="question-card"'),
         )
+
+    def test_complete_question_card_separates_and_escapes_review_content(self):
+        self.session_files["s001"] = valid_session(
+            "Controle difuso", include_question_content=True
+        ).replace(
+            "Qual regra jurídica se aplica à situação 1?",
+            "Qual regra <script>alert('x')</script> se aplica à situação 1?",
+            1,
+        )
+
+        document = render_html(self.manifest, self.session_files, {})
+
+        self.assertIn('class="question-prompt"', document)
+        self.assertIn('class="question-options"', document)
+        self.assertIn('class="question-feedback"', document)
+        prompt = document.index('class="question-prompt"')
+        options = document.index('class="question-options"', prompt)
+        feedback = document.index('class="question-feedback"', options)
+        self.assertLess(prompt, options)
+        self.assertLess(options, feedback)
+        self.assertIn("<h6>Pergunta</h6>", document)
+        self.assertIn("<h6>Alternativas</h6>", document)
+        self.assertIn("<h6>Resposta e feedback</h6>", document)
+        self.assertIn("<li><strong>A)</strong> Aplica-se a regra constitucional indicada.</li>", document)
+        self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", document)
+        self.assertNotIn("<script>alert('x')</script>", document)
+        self.assertIn(".question-prompt", document)
+        self.assertIn(".question-options", document)
+        self.assertIn(".question-feedback", document)
 
     def test_missing_or_invalid_image_uses_algorithmic_html_fallback(self):
         for status in ("missing", "invalid"):
