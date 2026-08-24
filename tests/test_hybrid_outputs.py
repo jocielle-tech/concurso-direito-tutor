@@ -266,6 +266,35 @@ raise SystemExit(main(['--check', sys.argv[1]]))
             )
         )
 
+    def test_complete_questions_are_preserved_in_every_markdown_review_output(self):
+        manifest_path = self.trail / "trilha.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["sessions"][0].update(question_target=20, question_content_version=1)
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        source = self.trail / manifest["sessions"][0]["file"]
+        source.write_text(
+            valid_session("Controle difuso", include_question_content=True),
+            encoding="utf-8",
+        )
+
+        result = self.run_build()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for relative in (
+            "modulos/01-direito-constitucional/topicos/01-controle-difuso/questoes.md",
+            "materiais/caderno-de-questoes.md",
+            "apostila/apostila.md",
+        ):
+            with self.subTest(relative=relative):
+                document = (self.trail / relative).read_text(encoding="utf-8")
+                question = document.index("#### Pergunta")
+                alternatives = document.index("#### Alternativas", question)
+                answer = document.index("#### Resposta e feedback", alternatives)
+                self.assertLess(question, alternatives)
+                self.assertLess(alternatives, answer)
+                self.assertIn("Qual regra jurídica se aplica à situação 1?", document)
+                self.assertIn("- E) Não existe revisão possível.", document)
+
     def test_build_keeps_recorded_session_path_after_manifest_reordering_and_renames(self):
         manifest_path = self.trail / "trilha.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
