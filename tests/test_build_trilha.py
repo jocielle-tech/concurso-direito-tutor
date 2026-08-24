@@ -222,6 +222,112 @@ class BuildTrilhaTests(unittest.TestCase):
                 self.assertIn("theory_briefing_version deve ser o inteiro 1", result.stderr)
                 self.assertNotIn("Traceback", result.stderr)
 
+    def test_question_content_version_is_opt_in_and_requires_integer_one(self):
+        for value in (True, 1.0, 2, "1"):
+            with self.subTest(value=value):
+                self.write_valid_trail()
+                manifest = self.valid_manifest()
+                manifest["sessions"][0]["question_content_version"] = value
+                self.write_manifest(manifest)
+
+                result = self.run_build("--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("question_content_version deve ser o inteiro 1", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_completed_versioned_session_accepts_complete_questions(self):
+        self.write_valid_trail()
+        manifest = self.valid_manifest()
+        manifest["sessions"][0].update(question_target=20, question_content_version=1)
+        self.write_manifest(manifest)
+        self.write_session(
+            "001.md",
+            valid_session("Controle difuso", include_question_content=True),
+        )
+
+        result = self.run_build("--check")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_versioned_question_content_requires_complete_ordered_blocks(self):
+        base = valid_session("Controle difuso", include_question_content=True)
+        cases = {
+            "missing_question": (
+                base.replace(
+                    "#### Pergunta\n\nQual regra jurídica se aplica à situação 1?\n\n",
+                    "",
+                    1,
+                ),
+                "Pergunta, Alternativas e Resposta e feedback",
+            ),
+            "empty_question": (
+                base.replace("Qual regra jurídica se aplica à situação 1?", "", 1),
+                "sem pergunta",
+            ),
+            "duplicate_alternatives": (
+                base.replace("#### Alternativas", "#### Alternativas\n\n#### Alternativas", 1),
+                "Pergunta, Alternativas e Resposta e feedback",
+            ),
+            "out_of_order": (
+                base.replace("#### Pergunta", "#### TEMP", 1)
+                .replace("#### Resposta e feedback", "#### Pergunta", 1)
+                .replace("#### TEMP", "#### Resposta e feedback", 1),
+                "Pergunta, Alternativas e Resposta e feedback",
+            ),
+            "one_option": (
+                base.replace(
+                    "- B) Afasta-se toda competência constitucional.\n"
+                    "- C) A decisão independe de fundamento normativo.\n"
+                    "- D) O controle é sempre administrativo.\n"
+                    "- E) Não existe revisão possível.\n",
+                    "",
+                    1,
+                ),
+                "ao menos duas alternativas rotuladas",
+            ),
+            "unlabelled_options": (
+                base.replace("- A) Aplica-se", "- Aplica-se", 1)
+                .replace("- B) Afasta-se", "- Afasta-se", 1)
+                .replace("- C) A decisão", "- A decisão", 1)
+                .replace("- D) O controle", "- O controle", 1)
+                .replace("- E) Não existe", "- Não existe", 1),
+                "ao menos duas alternativas rotuladas",
+            ),
+            "empty_option": (
+                base.replace("- A) Aplica-se a regra constitucional indicada.", "- A)", 1).replace(
+                    "- B) Afasta-se toda competência constitucional.", "- B)", 1
+                ).replace(
+                    "- C) A decisão independe de fundamento normativo.\n"
+                    "- D) O controle é sempre administrativo.\n"
+                    "- E) Não existe revisão possível.\n",
+                    "",
+                    1,
+                ),
+                "ao menos duas alternativas rotuladas",
+            ),
+        }
+        for name, (text, expected) in cases.items():
+            with self.subTest(name=name):
+                self.write_valid_trail()
+                manifest = self.valid_manifest()
+                manifest["sessions"][0].update(question_target=20, question_content_version=1)
+                self.write_manifest(manifest)
+                self.write_session("001.md", text)
+
+                result = self.run_build("--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_completed_session_without_question_content_version_remains_valid(self):
+        self.write_valid_trail()
+
+        result = self.run_build("--check")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_versioned_in_progress_session_requires_complete_theory_briefing(self):
         self.write_valid_trail()
         manifest = self.valid_manifest()
@@ -579,7 +685,7 @@ Exemplo concreto e erro previsível.
 Confirmar regra, exceção e aplicação."""
 
 
-def valid_session(title, question_count=20, topic_ids=("controle",)):
+def valid_session(title, question_count=20, topic_ids=("controle",), include_question_content=False):
     return f"""# {title}
 
 ## Conteúdo principal
@@ -604,7 +710,7 @@ Texto de estudo.
 
 ## Questões e feedback
 
-{feedback_section(question_count, topic_ids)}
+{feedback_section(question_count, topic_ids, include_question_content)}
 
 ## Fontes
 

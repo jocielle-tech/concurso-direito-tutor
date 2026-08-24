@@ -53,8 +53,13 @@ THEORY_BRIEFING_HEADINGS = (
     "Exemplos e pegadinhas",
     "Checklist antes das questões",
 )
+QUESTION_CONTENT_HEADINGS = ("Pergunta", "Alternativas", "Resposta e feedback")
 LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MAP_ITEM = re.compile(r"^(\s*)[-*]\s+\[([^]]+)\]\s+.+$")
+OPTION_ITEM = re.compile(
+    r"^\s*[-*]\s+(?:[A-Z]|Certo|Errado)[).:]\s+\S.*$",
+    re.MULTILINE | re.IGNORECASE,
+)
 MIGRATION_REQUIRED_EXIT = 3
 URL_COMPONENT_SAFE = "-._~!~*'()"
 
@@ -197,6 +202,36 @@ def validate_targeted_question_feedback(text, session):
         raise ValidationError(f"sessão '{session_id}': diagnóstico agregado obrigatório ausente")
 
 
+def validate_question_content(text, session):
+    questions, _diagnosis = parse_question_feedback(text)
+    for question in questions:
+        headings = list(re.finditer(r"^####\s+(.+?)\s*$", question.block, re.MULTILINE))
+        names = [heading.group(1) for heading in headings]
+        if names != list(QUESTION_CONTENT_HEADINGS):
+            raise ValidationError(
+                f"sessão '{session['id']}': questão {question.number} deve conter "
+                "Pergunta, Alternativas e Resposta e feedback, uma vez e nessa ordem"
+            )
+        bodies = {}
+        for index, heading in enumerate(headings):
+            end = headings[index + 1].start() if index + 1 < len(headings) else len(question.block)
+            bodies[heading.group(1)] = question.block[heading.end():end].strip()
+        if not bodies["Pergunta"]:
+            raise ValidationError(
+                f"sessão '{session['id']}': questão {question.number} sem pergunta"
+            )
+        if len(OPTION_ITEM.findall(bodies["Alternativas"])) < 2:
+            raise ValidationError(
+                f"sessão '{session['id']}': questão {question.number} "
+                "exige ao menos duas alternativas rotuladas"
+            )
+        missing = missing_feedback_fields(bodies["Resposta e feedback"], QUESTION_FIELDS)
+        if missing:
+            raise ValidationError(
+                f"sessão '{session['id']}': questão sem campos obrigatórios: {', '.join(missing)}"
+            )
+
+
 def validate_theory_briefing(text, session):
     sections = session_sections(text, session["title"])
     content = sections.get("Conteúdo principal")
@@ -271,6 +306,8 @@ def validate_completed_session(text, session):
     validate_question_feedback(sections["Questões e feedback"], session["id"])
     if session.get("question_target") is not None:
         validate_targeted_question_feedback(sections["Questões e feedback"], session)
+    if session.get("question_content_version") == 1:
+        validate_question_content(sections["Questões e feedback"], session)
 
 
 def inside_trail(trail, relative_path):
@@ -361,6 +398,13 @@ def load_and_validate(trail):
         if briefing_version is not None and (type(briefing_version) is not int or briefing_version != 1):
             raise ValidationError(
                 f"sessão '{session['id']}': theory_briefing_version deve ser o inteiro 1"
+            )
+        question_content_version = session.get("question_content_version")
+        if question_content_version is not None and (
+            type(question_content_version) is not int or question_content_version != 1
+        ):
+            raise ValidationError(
+                f"sessão '{session['id']}': question_content_version deve ser o inteiro 1"
             )
         if (not session["topic_ids"]
                 or any(not isinstance(item, str) or not item for item in session["topic_ids"])
