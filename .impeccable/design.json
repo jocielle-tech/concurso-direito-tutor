@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-24T03:07:08Z",
+  "title": "Design System: Concurso Direito Tutor",
+  "extensions": {
+    "colorMeta": {
+      "institutional-indigo": {
+        "role": "primary",
+        "displayName": "Índigo Institucional",
+        "canonical": "#3730A3",
+        "tonalRamp": ["oklch(20% 0.11 285)", "oklch(30% 0.13 285)", "oklch(40% 0.15 285)", "oklch(50% 0.14 285)", "oklch(62% 0.11 285)", "oklch(74% 0.08 285)", "oklch(86% 0.04 285)", "oklch(95% 0.015 285)"]
+      },
+      "orientation-blue": {
+        "role": "secondary",
+        "displayName": "Azul de Orientação",
+        "canonical": "#075985",
+        "tonalRamp": ["oklch(20% 0.08 235)", "oklch(30% 0.10 235)", "oklch(40% 0.11 235)", "oklch(50% 0.11 235)", "oklch(62% 0.09 235)", "oklch(74% 0.07 235)", "oklch(86% 0.035 235)", "oklch(95% 0.012 235)"]
+      },
+      "action-violet": {
+        "role": "primary",
+        "displayName": "Violeta de Ação",
+        "canonical": "#635BFF",
+        "tonalRamp": ["oklch(20% 0.13 285)", "oklch(30% 0.17 285)", "oklch(40% 0.20 285)", "oklch(52% 0.22 285)", "oklch(64% 0.19 285)", "oklch(76% 0.13 285)", "oklch(87% 0.065 285)", "oklch(95% 0.025 285)"]
+      },
+      "study-blue": {
+        "role": "secondary",
+        "displayName": "Azul de Estudo",
+        "canonical": "#0284C7",
+        "tonalRamp": ["oklch(20% 0.09 230)", "oklch(30% 0.11 230)", "oklch(40% 0.13 230)", "oklch(52% 0.14 230)", "oklch(64% 0.12 230)", "oklch(76% 0.09 230)", "oklch(87% 0.045 230)", "oklch(95% 0.016 230)"]
+      },
+      "link-blue": {
+        "role": "secondary",
+        "displayName": "Azul de Link",
+        "canonical": "#175CD3",
+        "tonalRamp": ["oklch(20% 0.10 255)", "oklch(30% 0.14 255)", "oklch(40% 0.17 255)", "oklch(52% 0.18 255)", "oklch(64% 0.15 255)", "oklch(76% 0.10 255)", "oklch(87% 0.05 255)", "oklch(95% 0.018 255)"]
+      },
+      "legal-ink": {
+        "role": "neutral",
+        "displayName": "Tinta Jurídica",
+        "canonical": "#101828",
+        "tonalRamp": ["oklch(15% 0.02 255)", "oklch(25% 0.025 255)", "oklch(36% 0.026 255)", "oklch(48% 0.024 255)", "oklch(60% 0.020 255)", "oklch(72% 0.015 255)", "oklch(85% 0.009 255)", "oklch(95% 0.004 255)"]
+      },
+      "supporting-ink": {
+        "role": "neutral",
+        "displayName": "Tinta de Apoio",
+        "canonical": "#475467",
+        "tonalRamp": ["oklch(18% 0.02 250)", "oklch(28% 0.025 250)", "oklch(40% 0.026 250)", "oklch(52% 0.024 250)", "oklch(64% 0.020 250)", "oklch(76% 0.015 250)", "oklch(87% 0.009 250)", "oklch(95% 0.004 250)"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Papel",
+        "canonical": "#FFFFFF",
+        "tonalRamp": ["oklch(20% 0 0)", "oklch(32% 0 0)", "oklch(44% 0 0)", "oklch(56% 0 0)", "oklch(68% 0 0)", "oklch(80% 0 0)", "oklch(90% 0 0)", "oklch(100% 0 0)"]
+      },
+      "desk-canvas": {
+        "role": "neutral",
+        "displayName": "Mesa Serena",
+        "canonical": "#F4F7FB",
+        "tonalRamp": ["oklch(18% 0.012 250)", "oklch(30% 0.014 250)", "oklch(42% 0.015 250)", "oklch(54% 0.014 250)", "oklch(66% 0.012 250)", "oklch(78% 0.010 250)", "oklch(88% 0.008 250)", "oklch(97% 0.006 250)"]
+      },
+      "quiet-border": {
+        "role": "neutral",
+        "displayName": "Divisor Silencioso",
+        "canonical": "#D0D5DD",
+        "tonalRamp": ["oklch(18% 0.01 250)", "oklch(30% 0.012 250)", "oklch(42% 0.013 250)", "oklch(54% 0.012 250)", "oklch(66% 0.010 250)", "oklch(78% 0.008 250)", "oklch(88% 0.006 250)", "oklch(95% 0.003 250)"]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Verde de Domínio",
+        "canonical": "#15803D",
+        "tonalRamp": ["oklch(20% 0.07 145)", "oklch(30% 0.10 145)", "oklch(40% 0.12 145)", "oklch(52% 0.13 145)", "oklch(64% 0.11 145)", "oklch(76% 0.08 145)", "oklch(87% 0.04 145)", "oklch(95% 0.015 145)"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Âmbar de Atenção",
+        "canonical": "#B45309",
+        "tonalRamp": ["oklch(20% 0.07 65)", "oklch(30% 0.10 65)", "oklch(40% 0.13 65)", "oklch(52% 0.14 65)", "oklch(64% 0.12 65)", "oklch(76% 0.085 65)", "oklch(87% 0.045 65)", "oklch(95% 0.016 65)"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Vermelho de Risco",
+        "canonical": "#B42318",
+        "tonalRamp": ["oklch(20% 0.08 25)", "oklch(30% 0.12 25)", "oklch(40% 0.15 25)", "oklch(52% 0.16 25)", "oklch(64% 0.13 25)", "oklch(76% 0.09 25)", "oklch(87% 0.045 25)", "oklch(95% 0.016 25)"]
+      }
+    },
+    "typographyMeta": {
+      "display": {"displayName": "Display", "purpose": "Título único do dashboard e capa da trilha."},
+      "headline": {"displayName": "Headline", "purpose": "Módulos e grandes mudanças de contexto."},
+      "title": {"displayName": "Title", "purpose": "Sessões, seções teóricas e questões."},
+      "body": {"displayName": "Body", "purpose": "Leitura jurídica prolongada."},
+      "label": {"displayName": "Label", "purpose": "Métricas, chips e micro-hierarquia."}
+    },
+    "shadows": [
+      {"name": "elevação-de-caderno", "value": "0 10px 30px rgba(16,24,40,.08)", "purpose": "Separa índice, cartões de estudo e mapas da superfície de fundo."},
+      {"name": "elevação-de-foco", "value": "0 24px 70px rgba(16,24,40,.35)", "purpose": "Isola exclusivamente o diálogo ampliado do mapa."}
+    ],
+    "motion": [
+      {"name": "painel-lateral", "value": "transform .2s ease", "purpose": "Entrada e saída do índice móvel; desativada com movimento reduzido."},
+      {"name": "movimento-reduzido", "value": ".01ms", "purpose": "Neutraliza animações e transições quando o sistema solicita redução de movimento."}
+    ],
+    "breakpoints": [
+      {"name": "dashboard-mobile", "value": "800px"}
+    ]
+  },
+  "components": [
+    {
+      "name": "Dashboard Hero",
+      "kind": "custom",
+      "refersTo": "hero",
+      "description": "Cabeçalho que situa o aluno, resume a trilha e concentra o progresso global.",
+      "html": "<header class=\"ds-hero\"><h1>Trilha de Direito Constitucional</h1><p>Roteiro de estudo, revisões e questões com feedback em uma apostila navegável.</p></header>",
+      "css": ".ds-hero{max-width:1200px;padding:2.2rem 1.5rem 1.5rem;color:#fff;background:linear-gradient(122deg,#3730A3,#075985);border-radius:0 0 1.5rem 1.5rem;font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-hero h1{margin:0;font-size:clamp(1.75rem,4vw,2.7rem);line-height:1.12}.ds-hero p{max-width:56rem;margin:.65rem 0 0;line-height:1.55}"
+    },
+    {
+      "name": "Metric Card",
+      "kind": "card",
+      "refersTo": "metric-card",
+      "description": "Indicador compacto usado sobre o hero para expor avanço e volume acumulado.",
+      "html": "<article class=\"ds-metric-card\"><span>Questões corrigidas</span><strong>120</strong></article>",
+      "css": ".ds-metric-card{min-width:10rem;padding:1rem;border:1px solid rgba(255,255,255,.3);border-radius:.85rem;background:rgba(255,255,255,.14);color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-metric-card span{display:block;font-size:.82rem}.ds-metric-card strong{display:block;margin-top:.2rem;font-size:1.1rem}"
+    },
+    {
+      "name": "Trail Progress",
+      "kind": "custom",
+      "refersTo": "progress",
+      "description": "Régua visual que sempre acompanha o percentual em texto.",
+      "html": "<div class=\"ds-progress-wrap\"><div class=\"ds-progress\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"60\"><span style=\"width:60%\"></span></div><p>Progresso global: <strong>60%</strong></p></div>",
+      "css": ".ds-progress-wrap{font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#475467}.ds-progress{height:.75rem;overflow:hidden;border-radius:999px;background:#DDE3EE}.ds-progress>span{display:block;height:100%;background:linear-gradient(90deg,#635BFF,#0284C7)}.ds-progress-wrap p{margin:.35rem 0 .85rem;font-size:.88rem}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Etiqueta textual e cromática para o estado de cada tópico.",
+      "html": "<span class=\"ds-status-chip\">Concluído</span>",
+      "css": ".ds-status-chip{display:inline-block;padding:.2rem .55rem;border-radius:999px;background:#DCFCE7;color:#14532D;font:700 .82rem/1.35 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;text-transform:capitalize}"
+    },
+    {
+      "name": "Study Card",
+      "kind": "card",
+      "refersTo": "study-card",
+      "description": "Folha principal para teoria, resumo, fontes ou mapa de revisão.",
+      "html": "<section class=\"ds-study-card\"><h3>Resumo estratégico</h3><p>Consolide conceitos, regras, exceções e jurisprudência antes das questões.</p></section>",
+      "css": ".ds-study-card{max-width:44rem;padding:1.15rem;border:1px solid #D0D5DD;border-radius:1rem;background:#fff;color:#101828;box-shadow:0 10px 30px rgba(16,24,40,.08);font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;line-height:1.55}.ds-study-card h3{margin:0 0 .75rem}.ds-study-card p{margin:.5rem 0}"
+    },
+    {
+      "name": "Question Review Card",
+      "kind": "card",
+      "refersTo": "question-card",
+      "description": "Unidade revisável que mantém pergunta, alternativas e feedback no mesmo contexto.",
+      "html": "<section class=\"ds-question-card\"><h3>Questão 1</h3><div class=\"ds-question-prompt\"><strong>Pergunta</strong><p>Qual princípio rege a situação apresentada?</p></div><div class=\"ds-question-options\"><strong>Alternativas</strong><p>A) Legalidade<br>B) Publicidade<br>C) Eficiência</p></div><div class=\"ds-question-feedback\"><strong>Resposta e feedback</strong><p>Alternativa A. A legalidade vincula a atuação administrativa.</p></div></section>",
+      "css": ".ds-question-card{max-width:44rem;padding:1rem;border-left:4px solid #635BFF;border-radius:.7rem;background:#F9FAFF;color:#101828;font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;line-height:1.55}.ds-question-card h3{margin:0 0 .6rem;font-size:1rem}.ds-question-prompt,.ds-question-options,.ds-question-feedback{margin:.75rem 0;padding:.85rem 1rem;border-radius:.65rem}.ds-question-prompt{background:#EEF2FF;border-left:4px solid #4F46E5}.ds-question-options{background:#F8FAFC;border:1px solid #E2E8F0}.ds-question-feedback{background:#FAF5FF;border-left:4px solid #8B5CF6}.ds-question-card p{margin:.5rem 0}"
+    },
+    {
+      "name": "Trail Navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Índice aderente que sinaliza o tópico atual e acompanha a rolagem.",
+      "html": "<nav class=\"ds-trail-nav\" aria-label=\"Índice da apostila\"><h2>Índice</h2><a href=\"#modulo\">Direito Constitucional</a><a class=\"ds-is-active\" href=\"#topico\">Direitos fundamentais</a></nav>",
+      "css": ".ds-trail-nav{width:18rem;padding:1rem;border:1px solid #D0D5DD;border-radius:.85rem;background:#fff;box-shadow:0 10px 30px rgba(16,24,40,.08);font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-trail-nav h2{margin-top:0;color:#101828}.ds-trail-nav a{display:block;margin:.55rem 0;color:#175CD3}.ds-trail-nav a:hover{text-decoration-thickness:2px}.ds-trail-nav a:focus-visible{outline:3px solid #344054;outline-offset:3px}.ds-trail-nav .ds-is-active{color:#101828;font-weight:700}.ds-trail-nav .ds-is-active::after{content:\" — tópico atual\"}"
+    },
+    {
+      "name": "Open Visual Map",
+      "kind": "button",
+      "refersTo": "map-open",
+      "description": "Controle de largura total que amplia o mapa sem ocultar seu conteúdo.",
+      "html": "<button class=\"ds-map-open\" type=\"button\"><span>Ampliar mapa algorítmico</span></button>",
+      "css": ".ds-map-open{display:block;width:100%;padding:1rem;border:1px solid #D0D5DD;border-radius:.75rem;background:#fff;color:#175CD3;font:700 1rem/1.35 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;cursor:zoom-in}.ds-map-open:hover{background:#F4F7FB}.ds-map-open:focus-visible{outline:3px solid #344054;outline-offset:3px}.ds-map-open:active{background:#EEF2FF}"
+    },
+    {
+      "name": "Close Dialog",
+      "kind": "button",
+      "refersTo": "close-button",
+      "description": "Controle circular e explícito para sair da ampliação do mapa.",
+      "html": "<button class=\"ds-close-dialog\" type=\"button\" aria-label=\"Fechar mapa\">×</button>",
+      "css": ".ds-close-dialog{width:2.4rem;height:2.4rem;border:1px solid #D0D5DD;border-radius:50%;background:#fff;color:#101828;font:400 1.4rem/1 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;cursor:pointer}.ds-close-dialog:hover{background:#F4F7FB}.ds-close-dialog:focus-visible{outline:3px solid #344054;outline-offset:3px}.ds-close-dialog:active{background:#E0EAFF}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Caderno de Aprovação",
+    "overview": "O sistema visual deve parecer um caderno de estudo cuidadosamente organizado que ganhou orientação, memória e progresso. Sua hierarquia é calma e previsível: o aluno entende onde está, lê por longos períodos e reconhece a próxima ação sem disputar atenção com ornamentos. Índigo institucional transmite rigor; azul orienta; superfícies claras preservam a sensação de papel.\n\nA interface é clara, confiável e estimulante, com densidade compatível com conteúdo jurídico extenso. Ela rejeita explicitamente a aparência de uma plataforma jurídica burocrática, densa ou intimidadora. O progresso pode ter energia; a leitura deve permanecer silenciosa.",
+    "keyCharacteristics": [
+      "Hierarquia editorial calma e imediatamente escaneável.",
+      "Papel branco sobre uma mesa azul-acinzentada suave.",
+      "Índigo para autoridade, azul para orientação e cores semânticas para diagnóstico.",
+      "Progresso sempre visível, mas nunca mais importante que o conteúdo.",
+      "Componentes arredondados e familiares, com estados de foco inequívocos.",
+      "Continuidade visual entre HTML navegável, impressão e PDF."
+    ],
+    "rules": [
+      {"name": "The Next Action Rule", "body": "Toda tela deve tornar localização, progresso e próxima ação compreensíveis antes de exigir leitura detalhada.", "section": "overview"},
+      {"name": "The Quiet Canvas Rule", "body": "Papel e Mesa Serena devem ocupar a maior parte da tela; acentos saturados são sinais, não decoração contínua.", "section": "colors"},
+      {"name": "The Semantic Integrity Rule", "body": "Verde, âmbar e vermelho nunca são decorativos: sempre comunicam conclusão, atenção ou risco.", "section": "colors"},
+      {"name": "The Reading First Rule", "body": "Nunca comprima o corpo para acomodar mais interface; a apostila existe para leitura prolongada, não para maximizar cartões por viewport.", "section": "typography"},
+      {"name": "The One Voice Rule", "body": "Use a família nativa em toda a interface. Diferencie níveis por peso e escala antes de introduzir qualquer nova fonte.", "section": "typography"},
+      {"name": "The Structural Shadow Rule", "body": "Sombra só pode explicar separação, fixação ou mudança de modo. Se ela apenas “embelezar” uma superfície, remova-a.", "section": "elevation"},
+      {"name": "The Print Becomes Paper Rule", "body": "Em impressão, remova sombras e fundos decorativos; preserve hierarquia, links úteis, quebras e legibilidade.", "section": "elevation"},
+      {"name": "The Continuous Study Rule", "body": "Componentes devem reforçar a passagem teoria → 20 questões → correção → revisão → apostila, sem transformar essas etapas em experiências visuais desconectadas.", "section": "components"}
+    ],
+    "dos": [
+      "Do mantenha localização, percentual e próxima ação visíveis antes do conteúdo detalhado.",
+      "Do use Papel sobre Mesa Serena como estrutura dominante e reserve índigo, violeta e azul a autoridade, navegação e progresso.",
+      "Do mantenha foco visível de 3px, navegação completa por teclado, contraste WCAG 2.2 AA e suporte a movimento reduzido.",
+      "Do preserve HTML navegável, PDF formatado e Markdown como expressões coerentes da mesma apostila.",
+      "Do mantenha o índice aderente no desktop e acionável por teclado no painel móvel abaixo de 800px.",
+      "Do apresente enunciado, todas as alternativas, resposta e feedback juntos em cada questão revisável."
+    ],
+    "donts": [
+      "Don't faça o produto parecer “uma plataforma jurídica burocrática, densa ou intimidadora”.",
+      "Don't use cor semântica como decoração ou dependa apenas de cor para comunicar estado.",
+      "Don't transforme cada parágrafo em cartão, pílula ou caixa; conteúdo jurídico precisa de fluxo editorial contínuo.",
+      "Don't empilhe sombra, borda grossa e fundo tonal no mesmo nível de hierarquia.",
+      "Don't esconda o fluxo textual do mapa mental atrás de uma imagem ou dependência externa.",
+      "Don't reduza corpo, espaçamento ou contraste para exibir mais informação na primeira dobra.",
+      "Don't introduza animações indispensáveis; toda transição deve respeitar prefers-reduced-motion."
+    ]
+  }
+}
