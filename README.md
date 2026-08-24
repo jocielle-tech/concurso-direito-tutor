@@ -19,6 +19,7 @@ Uma skill para transformar a preparação para concursos públicos de Direito em
 
 - Toda sessão principal começa com uma **preparação teórica detalhada**. As 20 questões só aparecem depois que o aluno confirma a leitura.
 - Cada sessão principal traz **exatamente 20 questões juntas**, corrigidas somente depois das 20 respostas.
+- Cada correção preserva a **pergunta e todas as alternativas** antes da resposta e do feedback, deixando a apostila autossuficiente para revisão.
 - O material agora usa uma **árvore híbrida**: a sessão canônica fica no tópico e resumos, mapas, questões, painéis e revisões também podem ser encontrados por tipo.
 - A apostila é construída nos três formatos: **Markdown**, **HTML interativo** e **PDF**.
 - Cada tópico concluído pode ganhar um **mapa algorítmico visual nativo**, com cache por conteúdo e sem API key.
@@ -27,10 +28,10 @@ Uma skill para transformar a preparação para concursos públicos de Direito em
 
 ## O resultado
 
-Esta é uma captura de uma apostila HTML gerada por uma trilha de exemplo: índice lateral, tópico ativo, progresso, preparação teórica, mapa mental e questões formatadas fazem parte do mesmo documento.
+Esta é uma captura de uma apostila HTML gerada por uma trilha de exemplo: o índice lateral, o mapa mental e a revisão com pergunta, alternativas e feedback fazem parte do mesmo documento navegável.
 
 <p align="center">
-  <img src="assets/readme/apostila-preview.png" alt="Prévia de apostila de Direito Constitucional com índice lateral, progresso, mapa mental, preparação teórica detalhada e questões formatadas" width="100%">
+  <img src="assets/readme/apostila-preview.png" alt="Prévia de apostila de Direito Constitucional com índice lateral, mapa mental e questão completa separada em pergunta, alternativas e feedback" width="100%">
 </p>
 
 ## Mapas algorítmicos nativos
@@ -72,7 +73,7 @@ Use $concurso-direito-tutor para criar uma trilha de Direito Constitucional
 para Analista Jurídico. Tenho 6 horas por semana e ainda não tenho edital.
 ```
 
-Para abrir uma sessão principal, a skill primeiro mostra uma preparação teórica detalhada e adaptada ao seu nível. Leia a aula e confirme que terminou a leitura; somente então as 20 questões aparecem juntas, numeradas de 1 a 20 e sem gabarito. A correção individual e o diagnóstico só aparecem depois das 20 respostas.
+Para abrir uma sessão principal, a skill primeiro mostra uma preparação teórica detalhada e adaptada ao seu nível. Leia a aula e confirme que terminou a leitura; somente então as 20 questões aparecem juntas, numeradas de 1 a 20 e sem gabarito. A correção individual e o diagnóstico só aparecem depois das 20 respostas. Na revisão gerada, cada item reapresenta o enunciado integral e todas as alternativas antes de mostrar a resposta, o gabarito e a explicação.
 
 ```text
 Vamos estudar controle difuso. Prepare a aula detalhada, espere eu confirmar
@@ -80,7 +81,7 @@ a leitura e depois apresente as 20 questões no estilo Cebraspe. Corrija somente
 depois das minhas 20 respostas.
 ```
 
-Se o estudante abandonar explicitamente as questões pendentes, a sessão fica `in_progress`: somente as respondidas são corrigidas e o progresso não aumenta. Ao concluir, cada feedback contém `Tópico`, resultado, fundamento, alternativas úteis, tipo de erro, prevenção, fonte e revisão.
+Se o estudante abandonar explicitamente as questões pendentes, a sessão fica `in_progress`: somente as respondidas são corrigidas e o progresso não aumenta. Ao concluir, cada bloco contém `Tópico`, pergunta e todas as alternativas, resposta, resultado, fundamento, alternativas úteis, tipo de erro, prevenção, fonte e revisão.
 
 Para uma dúvida pontual, basta perguntar. Dúvidas rápidas não criam nem encerram sessões artificialmente.
 
@@ -116,14 +117,15 @@ Todos os caminhos abaixo são relativos à raiz da trilha — por exemplo, `estu
 | `painel/indice.md` | Índice navegável da trilha. |
 | `painel/progresso.md` | Percentual global e andamento por módulo/tópico. |
 | `painel/agenda-de-revisoes.md` | Próximas revisões ordenadas. |
-| `modulos/.../topicos/.../sessoes/*.md` | Fonte canônica de cada sessão, com aula teórica, 20 questões e feedbacks. |
+| `modulos/.../topicos/.../sessoes/*.md` | Fonte canônica de cada sessão, com aula teórica, 20 questões e feedbacks; cada questão completa mantém enunciado e alternativas. |
 | `modulos/.../topicos/.../resumo.md` | Preparação completa e o resumo estratégico de cada sessão do tópico. |
-| `modulos/.../topicos/.../{mapa-mental,questoes}.md` | Mapas e questões derivados do tópico. |
-| `materiais/{resumos,mapas-mentais,caderno-de-questoes}.md` | Consolidações por tipo; `resumos.md` reúne a preparação completa e o resumo estratégico. |
+| `modulos/.../topicos/.../{mapa-mental,questoes}.md` | Mapas e revisão das questões completas derivadas do tópico. |
+| `materiais/caderno-de-questoes.md` | Caderno consolidado com enunciados, alternativas, respostas e feedbacks. |
+| `materiais/{resumos,mapas-mentais}.md` | Consolidações por tipo; `resumos.md` reúne a preparação completa e o resumo estratégico. |
 | `revisoes/agenda.md` | Agenda geral de revisão. |
 | `apostila/apostila.md` | Texto cumulativo para versionamento e leitura rápida. |
-| `apostila/apostila.html` | Dashboard autocontido: abra diretamente no navegador; todos os links e o índice lateral funcionam sem servidor. |
-| `apostila/apostila.pdf` | Caderno paginado para leitura, impressão ou compartilhamento. |
+| `apostila/apostila.html` | Dashboard autocontido: abra diretamente no navegador; todos os links e o índice lateral funcionam sem servidor, e cada questão separa visualmente pergunta, alternativas e feedback. |
+| `apostila/apostila.pdf` | Caderno paginado com perguntas completas, respostas e feedbacks para leitura, impressão ou compartilhamento. |
 | `assets/mapas/<topico>-<hash>/<source_hash>.png` | Mapas visuais nativos em cache; não editar manualmente. |
 | `backups/` | ZIPs criados antes de migrações de trilhas antigas. |
 

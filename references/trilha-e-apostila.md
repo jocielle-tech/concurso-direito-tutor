@@ -18,7 +18,7 @@ python3 <skill-dir>/scripts/build_trilha.py --migrate <trail_dir>
 
 Só continuar após a migração terminar. Ela preserva IDs, estados e conteúdo, cria ZIP em `backups/` e é idempotente. Qualquer outro erro de `--check` exige correção antes de escrever arquivos.
 
-Ao começar uma sessão nova, usar `status: "in_progress"`, `question_target: 20`, `theory_briefing_version: 1` e caminho canônico:
+Ao começar uma sessão nova, usar `status: "in_progress"`, `question_target: 20`, `theory_briefing_version: 1`, `question_content_version: 1` e caminho canônico:
 
 ```json
 {
@@ -49,23 +49,24 @@ Ao começar uma sessão nova, usar `status: "in_progress"`, `question_target: 20
     "topic_ids": ["controle-difuso"],
     "question_target": 20,
     "theory_briefing_version": 1,
+    "question_content_version": 1,
     "file": "modulos/01-direito-constitucional/topicos/01-controle-difuso/sessoes/001-controle-difuso.md"
   }]
 }
 ```
 
-Sessões legadas sem `question_target` continuam legíveis. Sessões legadas sem `theory_briefing_version` também continuam válidas e não precisam de migração; não adicionar esses campos retroativamente. Sem edital, usar `source: "provisional"`; quando ele chegar, recalibrar módulos e pesos sem apagar sessões ou estados.
+Sessões legadas sem `question_target` continuam legíveis. Sessões legadas sem `theory_briefing_version` também continuam válidas. Sessões legadas sem `question_content_version` permanecem válidas e não precisam de migração; não adicionar esses campos retroativamente. Sem edital, usar `source: "provisional"`; quando ele chegar, recalibrar módulos e pesos sem apagar sessões ou estados.
 
 ## Contrato da sessão principal
 
 1. Anunciar a preparação teórica obrigatória, as 20 questões, os materiais organizados, o progresso e as três apostilas: Markdown, HTML interativo e PDF.
-2. Definir ou retomar a sessão como `in_progress`, com `question_target: 20` e `theory_briefing_version: 1`, abrangendo cada ID em `topic_ids` ao menos uma vez. Não elevar o progresso.
+2. Definir ou retomar a sessão como `in_progress`, com `question_target: 20`, `theory_briefing_version: 1` e `question_content_version: 1`, abrangendo cada ID em `topic_ids` ao menos uma vez. Não elevar o progresso.
 3. Planejar uma matriz interna de cobertura para as 20 questões e redigir uma preparação teórica detalhada, adaptada ao nível e à complexidade do tema.
 4. Exibir somente a preparação teórica. Ela deve ensinar todo o substrato necessário e não revelar enunciados, alternativas ou gabaritos, nem associar conteúdo a números de questões.
 5. Esperar confirmação explícita de leitura. Responder dúvidas sem avançar e pedir a confirmação novamente; não permitir que uma sessão principal pule essa etapa.
 6. Após a confirmação, apresentar exatamente as **20 questões, de 1 a 20, em uma única prática**, sem gabarito, justificativa de alternativa ou correção intermediária.
 7. Esperar as 20 respostas. Se faltarem itens, informar apenas os números pendentes e esperar. Se o aluno abandonar explicitamente o restante, corrigir somente as respostas recebidas, manter `in_progress`, não concluir tópicos e não aumentar o progresso.
-8. Depois das 20 respostas, registrar feedbacks sequenciais de 1 a 20, um diagnóstico agregado posterior e a próxima revisão; então reconstruir todas as saídas e marcar a sessão como `completed`.
+8. Depois das 20 respostas, registrar blocos sequenciais de 1 a 20. Cada bloco preserva o **enunciado integral** e **todas as alternativas** exatamente como apresentados, seguidos da resposta e do feedback. Acrescentar o diagnóstico agregado e a próxima revisão; então reconstruir todas as saídas e marcar a sessão como `completed`.
 
 Para sessão concluída, usar o formato abaixo. Todo `Tópico` deve ser um ID de `session.topic_ids`; cada tópico da sessão precisa aparecer em pelo menos uma questão.
 
@@ -107,6 +108,18 @@ Para sessão concluída, usar o formato abaixo. Todo `Tópico` deve ser um ID de
 ## Questões e feedback
 ### Questão 1
 - Tópico: <topic_id>
+
+#### Pergunta
+<enunciado integral>
+
+#### Alternativas
+- A) <alternativa A>
+- B) <alternativa B>
+- C) <alternativa C>
+- D) <alternativa D>
+- E) <alternativa E>
+
+#### Resposta e feedback
 - Resposta: <resposta do aluno>
 - Resultado: <correta/incorreta e gabarito>
 - Fundamento: <regra, dispositivo ou precedente>
@@ -135,6 +148,8 @@ Usar no máximo três níveis no mapa e somente: `conceito` azul `#2563EB`, `reg
 
 Quando `theory_briefing_version` for `1`, os seis subtítulos centrais acima são obrigatórios, precisam estar nessa ordem e ter conteúdo. A extensão é adaptativa; os blocos adicionais de exceções, controvérsias, jurisprudência e aprofundamento entram quando forem pertinentes. O mesmo `Conteúdo principal` alimenta a tela, o arquivo canônico, os resumos por tópico e as três apostilas.
 
+Quando `question_content_version: 1`, cada questão de uma sessão concluída precisa conter, uma única vez e nessa ordem, `#### Pergunta`, `#### Alternativas` e `#### Resposta e feedback`. A pergunta não pode estar vazia. Registrar todas as alternativas efetivamente apresentadas; o formato aceita duas ou mais opções rotuladas, incluindo questões de certo ou errado. Os campos de correção permanecem obrigatórios dentro do último bloco. Sessões `in_progress` podem conter apenas a preparação enquanto aguardam leitura ou respostas.
+
 ## Árvore híbrida e saídas
 
 `trilha.json` e `modulos/.../sessoes/*.md` são fontes canônicas. Painéis, materiais, agendas e apostilas são derivados; não editá-los manualmente. Uma sessão multi-tópico tem uma só fonte no primeiro tópico; os demais tópicos apontam para ela, sem duplicá-la.
@@ -161,7 +176,7 @@ Após um fechamento concluído, executar:
 python3 <skill-dir>/scripts/build_trilha.py <trail_dir>
 ```
 
-Isso gera as três leituras da mesma fonte: `apostila.md` para versionamento e leitura rápida; `apostila.html` autocontida, com índice lateral sincronizado à rolagem, navegação sem JavaScript e estilos de impressão; e `apostila.pdf` paginada para estudo/impressão. O build é transacional: se uma saída falhar, preservar as versões anteriores.
+Isso gera as três leituras da mesma fonte: `apostila.md` para versionamento e leitura rápida; `apostila.html` autocontida, com índice lateral sincronizado à rolagem, navegação sem JavaScript e cartões separados para pergunta, alternativas e feedback; e `apostila.pdf` paginada para estudo/impressão. O enunciado integral e todas as alternativas também aparecem em `modulos/.../questoes.md` e `materiais/caderno-de-questoes.md`. O build é transacional: se uma saída falhar, preservar as versões anteriores.
 
 ## Mapa algorítmico nativo
 

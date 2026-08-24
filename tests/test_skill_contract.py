@@ -52,6 +52,27 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("aula teórica, 20 questões e feedbacks", readme)
         self.assertIn("preparação completa e o resumo estratégico", readme)
 
+    def test_contract_preserves_questions_and_alternatives_with_feedback(self):
+        skill = self.read("SKILL.md")
+        reference = self.read("references/trilha-e-apostila.md")
+        metadata = self.read("agents/openai.yaml")
+        readme = self.read("README.md")
+
+        for document in (skill, reference):
+            self.assertIn("question_content_version: 1", document)
+            self.assertIn("enunciado integral", document)
+            self.assertIn("todas as alternativas", document)
+        self.assertIn('"question_content_version": 1', reference)
+        self.assertLess(reference.index("#### Pergunta"), reference.index("#### Alternativas"))
+        self.assertLess(
+            reference.index("#### Alternativas"),
+            reference.index("#### Resposta e feedback"),
+        )
+        self.assertIn("Sessões legadas sem `question_content_version`", reference)
+        self.assertIn("pergunta e todas as alternativas", readme.lower())
+        self.assertIn("materiais/caderno-de-questoes.md", readme)
+        self.assertIn("perguntas completas", metadata.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
